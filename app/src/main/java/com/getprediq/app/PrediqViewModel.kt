@@ -64,14 +64,19 @@ class PrediqViewModel(private val repository: PrediqRepository) : ViewModel() {
         val capsJob = async { attempt { repository.paymentCapabilities() }.getOrNull() }
         val filtersJob = async { attempt { repository.filters() }.getOrNull() }
         val account = if (session) attempt { repository.me() }.getOrNull() else null
+        val picks = picksJob.await()?.picks.orEmpty()
+        val dashboard = dashboardJob.await() ?: ResultsDashboard()
+        val plans = plansJob.await()?.plans.orEmpty()
+        val capabilities = capsJob.await() ?: PaymentCapabilities()
+        val filters = filtersJob.await() ?: FilterOptions()
         update {
             it.copy(
                 account = account,
-                picks = picksJob.await()?.picks.orEmpty(),
-                resultsDashboard = dashboardJob.await() ?: ResultsDashboard(),
-                plans = plansJob.await()?.plans.orEmpty(),
-                paymentCapabilities = capsJob.await() ?: PaymentCapabilities(),
-                filterOptions = filtersJob.await() ?: FilterOptions(),
+                picks = picks,
+                resultsDashboard = dashboard,
+                plans = plans,
+                paymentCapabilities = capabilities,
+                filterOptions = filters,
                 loadingAccount = false,
             )
         }
