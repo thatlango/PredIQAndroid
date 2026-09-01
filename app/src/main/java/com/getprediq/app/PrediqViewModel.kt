@@ -22,6 +22,11 @@ data class PrediqUiState(
     val notifications: NotificationSettings? = null,
     val matchIntelligence: MatchIntelligenceResponse? = null,
     val leagueForecasts: List<LeagueForecast> = emptyList(),
+    val players: List<PlayerSummary> = emptyList(),
+    val playerDetail: PlayerDetail? = null,
+    val squadDepth: SquadDepthResponse? = null,
+    val exploreBusy: Boolean = false,
+    val exploreError: String? = null,
     val selectedSport: String = "",
     val selectedCountry: String = "",
     val selectedCompetition: String = "",
@@ -127,9 +132,10 @@ class PrediqViewModel(private val repository: PrediqRepository) : ViewModel() {
         update { it.copy(authBusy = true, authError = null) }
         attempt { repository.login(email, password) }.onSuccess { account -> update { it.copy(account = account, authBusy = false, authError = null) }; loadToday(); loadLive(); loadNotifications(); onDone() }.onFailure { error -> update { it.copy(authBusy = false, authError = error.message ?: "Sign in failed") } }
     }
-    fun register(name: String, email: String, password: String, onDone: () -> Unit) = viewModelScope.launch {
+    fun register(name: String, email: String, password: String, country: String, consent: Boolean, onDone: () -> Unit) = viewModelScope.launch {
         update { it.copy(authBusy = true, authError = null) }
-        attempt { repository.register(name, email, password) }.onSuccess { account -> update { it.copy(account = account, authBusy = false, authError = null) }; loadToday(); loadLive(); loadNotifications(); onDone() }.onFailure { error -> update { it.copy(authBusy = false, authError = error.message ?: "Account creation failed") } }
+        if (country.trim().length != 2 || !consent) { update { it.copy(authBusy = false, authError = if (!consent) "Please agree to the terms and responsible-use notice." else "Use a two-letter country code, for example UG.") }; return@launch }
+        attempt { repository.register(name, email, password, country.trim().uppercase(), consent) }.onSuccess { account -> update { it.copy(account = account, authBusy = false, authError = null) }; loadToday(); loadLive(); loadNotifications(); onDone() }.onFailure { error -> update { it.copy(authBusy = false, authError = error.message ?: "Account creation failed") } }
     }
     fun logout() = viewModelScope.launch { attempt { repository.logout() }; update { it.copy(account = null, assessments = emptyList(), notifications = null, matchIntelligence = null, leagueForecasts = emptyList()) }; loadLive(); loadToday() }
     fun refreshAccount() = viewModelScope.launch { if (!attempt { repository.hasSession() }.getOrDefault(false)) return@launch; attempt { repository.me() }.onSuccess { account -> update { it.copy(account = account, loadingAccount = false) } } }
@@ -138,6 +144,19 @@ class PrediqViewModel(private val repository: PrediqRepository) : ViewModel() {
     fun saveNotifications(settings: NotificationSettings) = viewModelScope.launch { attempt { repository.updateNotificationSettings(settings) }.onSuccess { saved -> update { it.copy(notifications = saved) } } }
     fun loadMatch(eventId: String) = viewModelScope.launch { update { it.copy(matchIntelligence = null) }; attempt { repository.matchIntelligence(eventId) }.onSuccess { data -> update { it.copy(matchIntelligence = data) } } }
     fun loadLeagueForecasts() = viewModelScope.launch { attempt { repository.leagueForecasts() }.onSuccess { data -> update { it.copy(leagueForecasts = data.leagues) } } }
+    fun searchPlayers(sport: String = "football", query: String = "") = viewModelScope.launch {
+        update { it.copy(exploreBusy = true, exploreError = null) }
+        attempt { repository.players(sport, query) }.onSuccess { data -> update { it.copy(players = data.players, playerDetail = null, exploreBusy = false) } }.onFailure { error -> update { it.copy(exploreBusy = false, exploreError = error.message ?: "Players could not load") } }
+    }
+    fun loadPlayer(playerId: String) = viewModelScope.launch {
+        update { it.copy(exploreBusy = true, exploreError = null) }
+        attempt { repository.player(playerId) }.onSuccess { data -> update { it.copy(playerDetail = data, exploreBusy = false) } }.onFailure { error -> update { it.copy(exploreBusy = false, exploreError = error.message ?: "Player could not load") } }
+    }
+    fun loadSquad(team: String) = viewModelScope.launch {
+        if (team.isBlank()) { update { it.copy(squadDepth = null, exploreError = null) }; return@launch }
+        update { it.copy(exploreBusy = true, exploreError = null) }
+        attempt { repository.squad(team) }.onSuccess { data -> update { it.copy(squadDepth = data, exploreBusy = false) } }.onFailure { error -> update { it.copy(exploreBusy = false, exploreError = error.message ?: "Squad could not load") } }
+    }
     fun clearPaymentMessage() = update { it.copy(paymentMessage = null) }
 
     companion object {
