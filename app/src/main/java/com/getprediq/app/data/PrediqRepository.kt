@@ -9,7 +9,7 @@ class PrediqRepository(context: Context) {
 
     suspend fun hasSession(): Boolean = !session.accessToken.first().isNullOrBlank()
     suspend fun login(email: String, password: String): AccountResponse { val auth = api.login(email, password); session.save(auth.accessToken, auth.refreshToken); return api.me() }
-    suspend fun register(name: String, email: String, password: String): AccountResponse { val auth = api.register(name, email, password); session.save(auth.accessToken, auth.refreshToken); return api.me() }
+    suspend fun register(name: String, email: String, password: String, country: String, consent: Boolean): AccountResponse { val auth = api.register(name, email, password, country, consent); session.save(auth.accessToken, auth.refreshToken); return api.me() }
     suspend fun logout() = api.logout()
     suspend fun me() = api.me()
     suspend fun picks() = api.picks()
@@ -25,4 +25,7 @@ class PrediqRepository(context: Context) {
     suspend fun updateNotificationSettings(settings: NotificationSettings) = api.updateNotificationSettings(settings)
     suspend fun matchIntelligence(eventId: String) = api.matchIntelligence(eventId)
     suspend fun leagueForecasts() = api.leagueForecasts()
+    suspend fun players(sport: String = "football", query: String = "") = api.players(sport, query)
+    suspend fun player(playerId: String) = api.player(playerId)
+    suspend fun squad(team: String) = api.squad(team)
 }
