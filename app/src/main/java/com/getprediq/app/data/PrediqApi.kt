@@ -80,6 +80,12 @@ class PrediqApi(private val session: SessionStore) {
     }
     suspend fun matchIntelligence(eventId: String) = json.decodeFromString<MatchIntelligenceResponse>(raw("intelligence/matches/${enc(eventId)}", auth = true))
     suspend fun leagueForecasts() = json.decodeFromString<LeagueForecastsResponse>(raw("intelligence/league-winners", auth = true))
+    suspend fun leagueIntelligence(sport: String = "football") = json.decodeFromString<LeagueIntelligenceResponse>(raw("intelligence/leagues?sport=${enc(sport)}&limit=60", auth = true))
+    suspend fun teams(sport: String = "football", competition: String = ""): TeamsResponse {
+        val suffix = if (competition.isBlank()) "" else "&competition=${enc(competition)}"
+        return json.decodeFromString(raw("intelligence/teams?sport=${enc(sport)}&limit=150$suffix", auth = true))
+    }
+    suspend fun team(team: String, sport: String = "football") = json.decodeFromString<TeamIntelligenceSummary>(raw("intelligence/team?team=${enc(team)}&sport=${enc(sport)}", auth = true))
     suspend fun players(sport: String = "football", query: String = "") = json.decodeFromString<PlayersResponse>(raw("intelligence/players?sport=${enc(sport)}&limit=50${if (query.isBlank()) "" else "&q=${enc(query)}"}", auth = true))
     suspend fun player(playerId: String) = json.decodeFromString<PlayerDetail>(raw("intelligence/player?player_id=${enc(playerId)}", auth = true))
     suspend fun squad(team: String) = json.decodeFromString<SquadDepthResponse>(raw("intelligence/squad?team=${enc(team)}&sport=football", auth = true))
