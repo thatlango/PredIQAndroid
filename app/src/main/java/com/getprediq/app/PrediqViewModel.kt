@@ -26,6 +26,9 @@ data class PrediqUiState(
     val affiliate: AffiliateDashboard? = null,
     val matchIntelligence: MatchIntelligenceResponse? = null,
     val leagueForecasts: List<LeagueForecast> = emptyList(),
+    val leagueProfiles: List<LeagueIntelligenceSummary> = emptyList(),
+    val teams: List<TeamIntelligenceSummary> = emptyList(),
+    val teamDetail: TeamIntelligenceSummary? = null,
     val players: List<PlayerSummary> = emptyList(),
     val playerDetail: PlayerDetail? = null,
     val squadDepth: SquadDepthResponse? = null,
@@ -175,6 +178,19 @@ class PrediqViewModel(private val repository: PrediqRepository) : ViewModel() {
     fun saveNotifications(settings: NotificationSettings) = viewModelScope.launch { attempt { repository.updateNotificationSettings(settings) }.onSuccess { saved -> update { it.copy(notifications = saved) } } }
     fun loadMatch(eventId: String) = viewModelScope.launch { update { it.copy(matchIntelligence = null) }; attempt { repository.matchIntelligence(eventId) }.onSuccess { data -> update { it.copy(matchIntelligence = data) } } }
     fun loadLeagueForecasts() = viewModelScope.launch { attempt { repository.leagueForecasts() }.onSuccess { data -> update { it.copy(leagueForecasts = data.leagues) } } }
+    fun loadLeagueProfiles(sport: String = "football") = viewModelScope.launch {
+        update { it.copy(exploreBusy = true, exploreError = null) }
+        attempt { repository.leagueIntelligence(sport) }.onSuccess { data -> update { it.copy(leagueProfiles = data.leagues, exploreBusy = false) } }.onFailure { error -> update { it.copy(exploreBusy = false, exploreError = error.message ?: "League intelligence could not load") } }
+    }
+    fun loadTeams(sport: String = "football", competition: String = "") = viewModelScope.launch {
+        update { it.copy(exploreBusy = true, exploreError = null) }
+        attempt { repository.teams(sport, competition) }.onSuccess { data -> update { it.copy(teams = data.teams, teamDetail = null, exploreBusy = false) } }.onFailure { error -> update { it.copy(exploreBusy = false, exploreError = error.message ?: "Team intelligence could not load") } }
+    }
+    fun loadTeam(team: String, sport: String = "football") = viewModelScope.launch {
+        if (team.isBlank()) return@launch
+        update { it.copy(exploreBusy = true, exploreError = null) }
+        attempt { repository.team(team, sport) }.onSuccess { data -> update { it.copy(teamDetail = data, exploreBusy = false) } }.onFailure { error -> update { it.copy(exploreBusy = false, exploreError = error.message ?: "Team intelligence could not load") } }
+    }
     fun searchPlayers(sport: String = "football", query: String = "") = viewModelScope.launch {
         update { it.copy(exploreBusy = true, exploreError = null) }
         attempt { repository.players(sport, query) }.onSuccess { data -> update { it.copy(players = data.players, playerDetail = null, exploreBusy = false) } }.onFailure { error -> update { it.copy(exploreBusy = false, exploreError = error.message ?: "Players could not load") } }
