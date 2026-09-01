@@ -47,3 +47,38 @@ import kotlinx.serialization.json.JsonObject
 @Serializable data class TeamForecast(val team: String, val probability: Double, val played: Int = 0, val points: Int = 0, @SerialName("goal_difference") val goalDifference: Int = 0)
 @Serializable data class LeagueForecast(@SerialName("sport_code") val sportCode: String = "football", val competition: String, val season: String = "", val predictions: List<TeamForecast> = emptyList(), val insight: String? = null, val methodology: String? = null, @SerialName("generated_at") val generatedAt: String? = null)
 @Serializable data class LeagueForecastsResponse(val leagues: List<LeagueForecast> = emptyList())
+
+@Serializable data class PlayerSummary(
+    val id: String, @SerialName("sport_code") val sportCode: String = "football", val name: String,
+    val nationality: String? = null, val age: Int? = null, val position: String? = null,
+    @SerialName("position_group") val positionGroup: String = "Unknown", val metadata: JsonObject? = null,
+    @SerialName("stat_rows") val statRows: Int = 0, @SerialName("source_count") val sourceCount: Int = 0,
+    @SerialName("stats_as_of") val statsAsOf: String? = null, val headline: String? = null,
+)
+@Serializable data class PlayersResponse(val players: List<PlayerSummary> = emptyList())
+@Serializable data class PlayerTeamEvidence(val name: String, val evidence: Int = 0)
+@Serializable data class PlayerDetail(
+    val id: String, @SerialName("sport_code") val sportCode: String = "football", val name: String,
+    val nationality: String? = null, @SerialName("birth_date") val birthDate: String? = null, val age: Int? = null,
+    val position: String? = null, @SerialName("position_group") val positionGroup: String = "Unknown",
+    @SerialName("primary_team") val primaryTeam: String? = null, val teams: List<PlayerTeamEvidence> = emptyList(),
+    @SerialName("performance_index") val performanceIndex: Double = 0.0, @SerialName("coverage_score") val coverageScore: Double = 0.0,
+    val stats: JsonObject = JsonObject(emptyMap()), val signals: List<String> = emptyList(), val sources: List<String> = emptyList(),
+    val disclaimer: String = "",
+)
+@Serializable data class SquadCoverage(
+    val score: Double = 0.0, val level: String = "limited", val message: String = "",
+    @SerialName("observed_players") val observedPlayers: Int = 0, @SerialName("lineup_events") val lineupEvents: Int = 0,
+    @SerialName("source_types") val sourceTypes: List<String> = emptyList(),
+)
+@Serializable data class SquadPositionGroup(val name: String, val count: Int = 0)
+@Serializable data class SquadPlayer(
+    val id: String? = null, val name: String, val position: String? = null, @SerialName("position_group") val positionGroup: String = "Unknown",
+    val age: Int? = null, val nationality: String? = null, val goals: Double? = null,
+    @SerialName("evidence_count") val evidenceCount: Int = 0, @SerialName("evidence_sources") val evidenceSources: List<String> = emptyList(),
+)
+@Serializable data class SquadDepthResponse(
+    val team: String, @SerialName("sport_code") val sportCode: String = "football", @SerialName("depth_score") val depthScore: Double? = null,
+    val players: List<SquadPlayer> = emptyList(), @SerialName("position_groups") val positionGroups: List<SquadPositionGroup> = emptyList(),
+    val coverage: SquadCoverage = SquadCoverage(), val methodology: String = "",
+)
