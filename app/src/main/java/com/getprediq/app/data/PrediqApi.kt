@@ -4,9 +4,9 @@ import com.getprediq.app.BuildConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
-import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.put
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -60,35 +60,44 @@ class PrediqApi(private val session: SessionStore) {
         val body = buildJsonObject { put("email", email.trim()); put("password", password) }.toString()
         return json.decodeFromString<AuthResponse>(raw("auth/login", "POST", body))
     }
+
     suspend fun register(name: String, email: String, password: String): AuthResponse {
         val body = buildJsonObject { put("name", name.trim()); put("email", email.trim()); put("password", password); put("country", "UG"); put("consent", true) }.toString()
         return json.decodeFromString<AuthResponse>(raw("auth/register", "POST", body))
     }
+
     suspend fun logout() { runCatching { raw("auth/logout", "POST", "{}", true) }; session.clear() }
     suspend fun me() = json.decodeFromString<AccountResponse>(raw("me", auth = true))
     suspend fun picks() = json.decodeFromString<PicksResponse>(raw("picks-of-day"))
     suspend fun filters() = json.decodeFromString<FilterOptions>(raw("filters"))
+
     suspend fun assessments(status: String? = null, sport: String? = null, competition: String? = null, confidence: String? = null, market: String? = null): AssessmentsResponse {
         val q = mutableListOf<String>()
         fun add(key: String, value: String?) { if (!value.isNullOrBlank()) q += "$key=${enc(value)}" }
         add("status", status); add("sport", sport); add("competition", competition); add("confidence", confidence); add("market", market)
         return json.decodeFromString(raw("assessments${if (q.isEmpty()) "" else "?" + q.joinToString("&")}", auth = true))
     }
+
     suspend fun live(full: Boolean) = json.decodeFromString<LiveResponse>(raw(if (full) "live" else "live/preview", auth = full))
     suspend fun resultsDashboard() = json.decodeFromString<ResultsDashboard>(raw("results/dashboard"))
+
     suspend fun results(days: Int = 30, outcome: String? = null, sport: String? = null, competition: String? = null, market: String? = null, confidence: String? = null): ResultsResponse {
         val q = mutableListOf("days=$days")
         fun add(key: String, value: String?) { if (!value.isNullOrBlank()) q += "$key=${enc(value)}" }
         add("outcome", outcome); add("sport", sport); add("competition", competition); add("market", market); add("confidence", confidence)
         return json.decodeFromString(raw("results?${q.joinToString("&")}"))
     }
+
     suspend fun plans() = json.decodeFromString<PlansResponse>(raw("plans"))
     suspend fun paymentCapabilities() = json.decodeFromString<PaymentCapabilities>(raw("payments/capabilities"))
+
     suspend fun checkout(plan: String, phone: String): CheckoutResponse {
         val body = buildJsonObject { put("plan_code", plan); put("phone", phone) }.toString()
         return json.decodeFromString(raw("payments/checkout", "POST", body, true))
     }
+
     suspend fun notificationSettings() = json.decodeFromString<NotificationSettings>(raw("me/notifications", auth = true))
+
     suspend fun updateNotificationSettings(settings: NotificationSettings): NotificationSettings {
         val a = settings.alerts
         val body = buildJsonObject {
@@ -97,6 +106,7 @@ class PrediqApi(private val session: SessionStore) {
         }.toString()
         return json.decodeFromString(raw("me/notifications", "PUT", body, true))
     }
+
     suspend fun matchIntelligence(eventId: String) = json.decodeFromString<MatchIntelligenceResponse>(raw("intelligence/matches/${enc(eventId)}", auth = true))
     suspend fun leagueForecasts() = json.decodeFromString<LeagueForecastsResponse>(raw("intelligence/league-winners", auth = true))
 
