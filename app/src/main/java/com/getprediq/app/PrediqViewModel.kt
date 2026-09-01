@@ -23,6 +23,9 @@ data class PrediqUiState(
     val matchIntelligence: MatchIntelligenceResponse? = null,
     val leagueForecasts: List<LeagueForecast> = emptyList(),
     val selectedSport: String = "",
+    val selectedCompetition: String = "",
+    val selectedConfidence: String = "",
+    val selectedMarket: String = "",
     val todayMode: String = "today",
     val resultOutcome: String = "",
     val resultDays: Int = 30,
@@ -49,23 +52,24 @@ class PrediqViewModel(private val repository: PrediqRepository) : ViewModel() {
 
     private fun bootstrap() = viewModelScope.launch {
         val session = runCatching { repository.hasSession() }.getOrDefault(false)
-        val publicJobs = listOf(
-            async { runCatching { repository.picks() }.getOrNull() },
-            async { runCatching { repository.resultsDashboard() }.getOrNull() },
-            async { runCatching { repository.plans() }.getOrNull() },
-            async { runCatching { repository.paymentCapabilities() }.getOrNull() },
-            async { runCatching { repository.filters() }.getOrNull() },
-        )
+        val picksJob = async { runCatching { repository.picks() }.getOrNull() }
+        val dashboardJob = async { runCatching { repository.resultsDashboard() }.getOrNull() }
+        val plansJob = async { runCatching { repository.plans() }.getOrNull() }
+        val capsJob = async { runCatching { repository.paymentCapabilities() }.getOrNull() }
+        val filtersJob = async { runCatching { repository.filters() }.getOrNull() }
         val account = if (session) runCatching { repository.me() }.getOrNull() else null
-        val picks = publicJobs[0].await() as? PicksResponse
-        val dashboard = publicJobs[1].await() as? ResultsDashboard
-        val plans = publicJobs[2].await() as? PlansResponse
-        val caps = publicJobs[3].await() as? PaymentCapabilities
-        val filters = publicJobs[4].await() as? FilterOptions
-        update { it.copy(account = account, picks = picks?.picks.orEmpty(), resultsDashboard = dashboard ?: ResultsDashboard(), plans = plans?.plans.orEmpty(), paymentCapabilities = caps ?: PaymentCapabilities(), filterOptions = filters ?: FilterOptions(), loadingAccount = false) }
-        loadToday()
-        loadLive()
-        loadResults()
+        update {
+            it.copy(
+                account = account,
+                picks = picksJob.await()?.picks.orEmpty(),
+                resultsDashboard = dashboardJob.await() ?: ResultsDashboard(),
+                plans = plansJob.await()?.plans.orEmpty(),
+                paymentCapabilities = capsJob.await() ?: PaymentCapabilities(),
+                filterOptions = filtersJob.await() ?: FilterOptions(),
+                loadingAccount = false,
+            )
+        }
+        loadToday(); loadLive(); loadResults()
         if (account != null) loadNotifications()
     }
 
@@ -73,14 +77,18 @@ class PrediqViewModel(private val repository: PrediqRepository) : ViewModel() {
 
     fun loadToday() = viewModelScope.launch {
         update { it.copy(loadingToday = it.assessments.isEmpty(), todayError = null) }
-        if (!fullAccess) {
-            update { it.copy(loadingToday = false) }
-            return@launch
-        }
+        if (!fullAccess) { update { it.copy(loadingToday = false) }; return@launch }
         val current = state.value
         val status = if (current.todayMode == "upcoming") "upcoming" else null
-        runCatching { repository.assessments(status = status, sport = current.selectedSport.takeIf { it.isNotBlank() }) }
-            .onSuccess { response -> update { it.copy(assessments = response.assessments, loadingToday = false, todayError = null) } }
+        runCatching {
+            repository.assessments(
+                status = status,
+                sport = current.selectedSport.takeIf { it.isNotBlank() },
+                competition = current.selectedCompetition.takeIf { it.isNotBlank() },
+                confidence = current.selectedConfidence.takeIf { it.isNotBlank() },
+                market = current.selectedMarket.takeIf { it.isNotBlank() },
+            )
+        }.onSuccess { response -> update { it.copy(assessments = response.assessments, loadingToday = false, todayError = null) } }
             .onFailure { error -> update { it.copy(loadingToday = false, todayError = error.message ?: "Could not refresh today’s analysis") } }
     }
 
@@ -96,12 +104,25 @@ class PrediqViewModel(private val repository: PrediqRepository) : ViewModel() {
         update { it.copy(loadingResults = it.results.isEmpty(), resultError = null) }
         val current = state.value
         val dash = async { runCatching { repository.resultsDashboard() }.getOrNull() }
-        runCatching { repository.results(days = current.resultDays, outcome = current.resultOutcome.takeIf { it.isNotBlank() }, sport = current.selectedSport.takeIf { it.isNotBlank() }) }
-            .onSuccess { response -> update { it.copy(results = response.results, resultsDashboard = dash.await() ?: it.resultsDashboard, loadingResults = false) } }
+        runCatching {
+            repository.results(
+                days = current.resultDays,
+                outcome = current.resultOutcome.takeIf { it.isNotBlank() },
+                sport = current.selectedSport.takeIf { it.isNotBlank() },
+                competition = current.selectedCompetition.takeIf { it.isNotBlank() },
+                market = current.selectedMarket.takeIf { it.isNotBlank() },
+                confidence = current.selectedConfidence.takeIf { it.isNotBlank() },
+            )
+        }.onSuccess { response -> update { it.copy(results = response.results, resultsDashboard = dash.await() ?: it.resultsDashboard, loadingResults = false) } }
             .onFailure { error -> update { it.copy(loadingResults = false, resultError = error.message ?: "Results could not refresh") } }
     }
 
     fun selectSport(sport: String) { update { it.copy(selectedSport = sport) }; loadToday(); loadResults() }
+    fun applyFilters(sport: String, competition: String, confidence: String, market: String) {
+        update { it.copy(selectedSport = sport, selectedCompetition = competition, selectedConfidence = confidence, selectedMarket = market) }
+        loadToday(); loadResults()
+    }
+    fun clearAdvancedFilters() { update { it.copy(selectedSport = "", selectedCompetition = "", selectedConfidence = "", selectedMarket = "") }; loadToday(); loadResults() }
     fun setTodayMode(mode: String) { update { it.copy(todayMode = mode) }; loadToday() }
     fun setResultOutcome(outcome: String) { update { it.copy(resultOutcome = outcome) }; loadResults() }
     fun setResultDays(days: Int) { update { it.copy(resultDays = days) }; loadResults() }
@@ -139,7 +160,7 @@ class PrediqViewModel(private val repository: PrediqRepository) : ViewModel() {
     }
 
     fun loadNotifications() = viewModelScope.launch {
-        if (!fullAccess && state.value.account == null) return@launch
+        if (state.value.account == null) return@launch
         runCatching { repository.notificationSettings() }.onSuccess { settings -> update { it.copy(notifications = settings) } }
     }
 
@@ -161,9 +182,7 @@ class PrediqViewModel(private val repository: PrediqRepository) : ViewModel() {
     companion object {
         fun factory(context: Context): ViewModelProvider.Factory = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
-            override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                return PrediqViewModel(PrediqRepository(context.applicationContext)) as T
-            }
+            override fun <T : ViewModel> create(modelClass: Class<T>): T = PrediqViewModel(PrediqRepository(context.applicationContext)) as T
         }
     }
 }
