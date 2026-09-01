@@ -48,7 +48,7 @@ class PrediqApi(private val session: SessionStore) {
     }
 
     suspend fun login(email: String, password: String): AuthResponse = json.decodeFromString(raw("auth/login", "POST", buildJsonObject { put("email", email.trim()); put("password", password) }.toString()))
-    suspend fun register(name: String, email: String, password: String): AuthResponse = json.decodeFromString(raw("auth/register", "POST", buildJsonObject { put("name", name.trim()); put("email", email.trim()); put("password", password); put("country", "UG"); put("consent", true) }.toString()))
+    suspend fun register(name: String, email: String, password: String, country: String, consent: Boolean): AuthResponse = json.decodeFromString(raw("auth/register", "POST", buildJsonObject { put("name", name.trim()); put("email", email.trim()); put("password", password); put("country", country.trim().uppercase()); put("consent", consent) }.toString()))
     suspend fun logout() { runCatching { raw("auth/logout", "POST", "{}", true) }; session.clear() }
     suspend fun me() = json.decodeFromString<AccountResponse>(raw("me", auth = true))
     suspend fun picks() = json.decodeFromString<PicksResponse>(raw("picks-of-day"))
@@ -80,5 +80,8 @@ class PrediqApi(private val session: SessionStore) {
     }
     suspend fun matchIntelligence(eventId: String) = json.decodeFromString<MatchIntelligenceResponse>(raw("intelligence/matches/${enc(eventId)}", auth = true))
     suspend fun leagueForecasts() = json.decodeFromString<LeagueForecastsResponse>(raw("intelligence/league-winners", auth = true))
+    suspend fun players(sport: String = "football", query: String = "") = json.decodeFromString<PlayersResponse>(raw("intelligence/players?sport=${enc(sport)}&limit=50${if (query.isBlank()) "" else "&q=${enc(query)}"}"))
+    suspend fun player(playerId: String) = json.decodeFromString<PlayerDetail>(raw("intelligence/player?player_id=${enc(playerId)}"))
+    suspend fun squad(team: String) = json.decodeFromString<SquadDepthResponse>(raw("intelligence/squad?team=${enc(team)}&sport=football"))
     private fun enc(value: String): String = URLEncoder.encode(value, StandardCharsets.UTF_8.toString())
 }
