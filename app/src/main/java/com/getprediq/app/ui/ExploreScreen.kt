@@ -28,6 +28,27 @@ import com.getprediq.app.ui.theme.PrediqSurfaceLow
 
 @Composable
 fun ExploreScreen(state: PrediqUiState, vm: PrediqViewModel) {
+    if (!vm.fullAccess) {
+        LazyColumn(
+            modifier = Modifier.fillMaxSize().background(PrediqBackground),
+            contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 100.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            item {
+                Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                    Text("Explore", style = MaterialTheme.typography.headlineMedium)
+                    Text("The deeper evidence behind PredIQ calls.", color = PrediqMuted)
+                }
+            }
+            item {
+                StateCard(
+                    "Explore needs Full Access",
+                    if (state.account == null) "Sign in, then activate a plan to open league, team, player, squad and comparison intelligence." else "Activate a PredIQ plan from Account to open league, team, player, squad and comparison intelligence.",
+                )
+            }
+        }
+        return
+    }
     var mode by rememberSaveable { mutableStateOf("players") }
     var sport by rememberSaveable { mutableStateOf("football") }
     var playerQuery by rememberSaveable { mutableStateOf("") }
