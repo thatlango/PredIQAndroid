@@ -1,6 +1,8 @@
 package com.getprediq.app
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -10,7 +12,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -19,7 +20,6 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
-import com.getprediq.app.data.NotificationAlerts
 import com.getprediq.app.data.NotificationSettings
 import com.getprediq.app.data.PlanDto
 import com.getprediq.app.ui.*
@@ -66,9 +66,7 @@ private fun MainTabs(state: PrediqUiState, vm: PrediqViewModel, onMatch: (String
     var responsibleOpen by rememberSaveable { mutableStateOf(false) }
     var filtersOpen by rememberSaveable { mutableStateOf(false) }
 
-    fun requestAccess() {
-        if (state.account == null) authOpen = true else tab = MainTab.Account
-    }
+    fun requestAccess() { if (state.account == null) authOpen = true else tab = MainTab.Account }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -116,11 +114,9 @@ private fun AuthSheet(state: PrediqUiState, vm: PrediqViewModel, onClose: () -> 
             OutlinedTextField(email, { email = it }, label = { Text("Email") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
             OutlinedTextField(password, { password = it }, label = { Text("Password") }, visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth(), singleLine = true)
             state.authError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-            Button(
-                onClick = { if (register) vm.register(name, email, password, onClose) else vm.login(email, password, onClose) },
-                enabled = !state.authBusy && email.isNotBlank() && password.length >= 8 && (!register || name.isNotBlank()),
-                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
-            ) { if (state.authBusy) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp) else Text(if (register) "Create account" else "Sign in") }
+            Button(onClick = { if (register) vm.register(name, email, password, onClose) else vm.login(email, password, onClose) }, enabled = !state.authBusy && email.isNotBlank() && password.length >= 8 && (!register || name.isNotBlank()), modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
+                if (state.authBusy) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp) else Text(if (register) "Create account" else "Sign in")
+            }
             TextButton(onClick = { register = !register }, modifier = Modifier.align(Alignment.CenterHorizontally)) { Text(if (register) "Already have an account? Sign in" else "Create a PredIQ account") }
         }
     }
@@ -185,16 +181,33 @@ private fun ResponsibleUseSheet(onClose: () -> Unit) {
 @Composable
 private fun FilterSheet(state: PrediqUiState, vm: PrediqViewModel, onClose: () -> Unit) {
     var sport by rememberSaveable { mutableStateOf(state.selectedSport) }
+    var competition by rememberSaveable { mutableStateOf(state.selectedCompetition) }
+    var confidence by rememberSaveable { mutableStateOf(state.selectedConfidence) }
+    var market by rememberSaveable { mutableStateOf(state.selectedMarket) }
     ModalBottomSheet(onDismissRequest = onClose) {
-        Column(Modifier.fillMaxWidth().padding(20.dp).navigationBarsPadding(), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        Column(Modifier.fillMaxWidth().padding(20.dp).navigationBarsPadding().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             Text("Filters", style = MaterialTheme.typography.headlineMedium)
             Text("Sport", style = MaterialTheme.typography.labelLarge, color = PrediqMuted)
             SportChips((listOf("football", "basketball", "tennis", "cricket") + state.filterOptions.sports).distinct(), sport) { sport = it }
-            Text("More league, market and confidence filters use the same compact sheet as their backend coverage becomes available for the selected sport.", color = PrediqMuted, style = MaterialTheme.typography.bodyMedium)
+            Text("League / Competition", style = MaterialTheme.typography.labelLarge, color = PrediqMuted)
+            ChoiceRow(listOf("") + state.filterOptions.competitions.take(40), competition, { if (it.isBlank()) "All" else it }) { competition = it }
+            Text("Confidence", style = MaterialTheme.typography.labelLarge, color = PrediqMuted)
+            ChoiceRow(listOf("", "top", "high", "moderate", "try"), confidence, { if (it.isBlank()) "All" else it.replaceFirstChar(Char::uppercase) }) { confidence = it }
+            Text("Market", style = MaterialTheme.typography.labelLarge, color = PrediqMuted)
+            ChoiceRow(listOf("") + state.filterOptions.markets.take(20), market, { if (it.isBlank()) "All" else marketName(it) }) { market = it }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                OutlinedButton(onClick = { sport = "" }, modifier = Modifier.weight(1f)) { Text("Clear") }
-                Button(onClick = { vm.selectSport(sport); onClose() }, modifier = Modifier.weight(1f)) { Text("Apply") }
+                OutlinedButton(onClick = { sport = ""; competition = ""; confidence = ""; market = ""; vm.clearAdvancedFilters(); onClose() }, modifier = Modifier.weight(1f)) { Text("Clear") }
+                Button(onClick = { vm.applyFilters(sport, competition, confidence, market); onClose() }, modifier = Modifier.weight(1f)) { Text("Apply") }
             }
+        }
+    }
+}
+
+@Composable
+private fun ChoiceRow(values: List<String>, selected: String, label: (String) -> String, onSelect: (String) -> Unit) {
+    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        items(values.distinct(), key = { it }) { value ->
+            FilterChip(selected = value == selected, onClick = { onSelect(value) }, label = { Text(label(value), maxLines = 1) }, shape = androidx.compose.foundation.shape.CircleShape, modifier = Modifier.heightIn(min = 44.dp))
         }
     }
 }
