@@ -23,6 +23,7 @@ data class PrediqUiState(
     val matchIntelligence: MatchIntelligenceResponse? = null,
     val leagueForecasts: List<LeagueForecast> = emptyList(),
     val selectedSport: String = "",
+    val selectedCountry: String = "",
     val selectedCompetition: String = "",
     val selectedConfidence: String = "",
     val selectedMarket: String = "",
@@ -49,12 +50,7 @@ class PrediqViewModel(private val repository: PrediqRepository) : ViewModel() {
     init { bootstrap() }
 
     private fun update(transform: (PrediqUiState) -> PrediqUiState) { state.value = transform(state.value) }
-
-    private suspend fun <T> attempt(block: suspend () -> T): Result<T> = try {
-        Result.success(block())
-    } catch (error: Throwable) {
-        Result.failure(error)
-    }
+    private suspend fun <T> attempt(block: suspend () -> T): Result<T> = try { Result.success(block()) } catch (error: Throwable) { Result.failure(error) }
 
     private fun bootstrap() = viewModelScope.launch {
         val session = attempt { repository.hasSession() }.getOrDefault(false)
@@ -69,17 +65,7 @@ class PrediqViewModel(private val repository: PrediqRepository) : ViewModel() {
         val plans = plansJob.await()?.plans.orEmpty()
         val capabilities = capsJob.await() ?: PaymentCapabilities()
         val filters = filtersJob.await() ?: FilterOptions()
-        update {
-            it.copy(
-                account = account,
-                picks = picks,
-                resultsDashboard = dashboard,
-                plans = plans,
-                paymentCapabilities = capabilities,
-                filterOptions = filters,
-                loadingAccount = false,
-            )
-        }
+        update { it.copy(account = account, picks = picks, resultsDashboard = dashboard, plans = plans, paymentCapabilities = capabilities, filterOptions = filters, loadingAccount = false) }
         loadToday(); loadLive(); loadResults()
         if (account != null) loadNotifications()
     }
@@ -91,26 +77,29 @@ class PrediqViewModel(private val repository: PrediqRepository) : ViewModel() {
         if (!fullAccess) { update { it.copy(loadingToday = false) }; return@launch }
         val current = state.value
         val status = if (current.todayMode == "upcoming") "upcoming" else null
-        attempt {
-            repository.assessments(
-                status = status,
-                sport = current.selectedSport.takeIf { it.isNotBlank() },
-                competition = current.selectedCompetition.takeIf { it.isNotBlank() },
-                confidence = current.selectedConfidence.takeIf { it.isNotBlank() },
-                market = current.selectedMarket.takeIf { it.isNotBlank() },
-            )
-        }.onSuccess { response ->
-            update { it.copy(assessments = response.assessments, loadingToday = false, todayError = null) }
-        }.onFailure { error ->
-            update { it.copy(loadingToday = false, todayError = error.message ?: "Could not refresh today’s analysis") }
-        }
+        attempt { repository.assessments(status, current.selectedSport.takeIf(String::isNotBlank), current.selectedCountry.takeIf(String::isNotBlank), current.selectedCompetition.takeIf(String::isNotBlank), current.selectedConfidence.takeIf(String::isNotBlank), current.selectedMarket.takeIf(String::isNotBlank)) }
+            .onSuccess { response -> update { it.copy(assessments = response.assessments, loadingToday = false, todayError = null) } }
+            .onFailure { error -> update { it.copy(loadingToday = false, todayError = error.message ?: "Could not refresh today’s analysis") } }
     }
 
     fun loadLive() = viewModelScope.launch {
-        val hadData = state.value.live != null
+        val current = state.value
+        val hadData = current.live != null
         update { it.copy(loadingLive = !hadData, liveError = null) }
         attempt { repository.live(fullAccess) }
-            .onSuccess { response -> update { it.copy(live = response, loadingLive = false, liveError = null) } }
+            .onSuccess { response ->
+                val games = response.games.filter { game ->
+                    (current.selectedSport.isBlank() || game.sportCode == current.selectedSport) &&
+                    (current.selectedCompetition.isBlank() || game.competition.equals(current.selectedCompetition, ignoreCase = true))
+                }
+                val scoped = if (fullAccess && (current.selectedSport.isNotBlank() || current.selectedCompetition.isNotBlank())) response.copy(
+                    games = games,
+                    liveCount = games.size,
+                    strongCount = games.count { it.analysisPromotable },
+                    predictedCount = games.count { it.predictionAvailable },
+                ) else response
+                update { it.copy(live = scoped, loadingLive = false, liveError = null) }
+            }
             .onFailure { error -> update { it.copy(loadingLive = false, liveError = error.message ?: "Live could not refresh") } }
     }
 
@@ -118,96 +107,42 @@ class PrediqViewModel(private val repository: PrediqRepository) : ViewModel() {
         update { it.copy(loadingResults = it.results.isEmpty(), resultError = null) }
         val current = state.value
         val dashboardJob = async { attempt { repository.resultsDashboard() }.getOrNull() }
-        val result = attempt {
-            repository.results(
-                days = current.resultDays,
-                outcome = current.resultOutcome.takeIf { it.isNotBlank() },
-                sport = current.selectedSport.takeIf { it.isNotBlank() },
-                competition = current.selectedCompetition.takeIf { it.isNotBlank() },
-                market = current.selectedMarket.takeIf { it.isNotBlank() },
-                confidence = current.selectedConfidence.takeIf { it.isNotBlank() },
-            )
-        }
+        val result = attempt { repository.results(current.resultDays, current.resultOutcome.takeIf(String::isNotBlank), current.selectedSport.takeIf(String::isNotBlank), current.selectedCountry.takeIf(String::isNotBlank), current.selectedCompetition.takeIf(String::isNotBlank), current.selectedMarket.takeIf(String::isNotBlank), current.selectedConfidence.takeIf(String::isNotBlank)) }
         val dashboard = dashboardJob.await()
-        result.onSuccess { response ->
-            update { it.copy(results = response.results, resultsDashboard = dashboard ?: it.resultsDashboard, loadingResults = false, resultError = null) }
-        }.onFailure { error ->
-            update { it.copy(loadingResults = false, resultError = error.message ?: "Results could not refresh") }
-        }
+        result.onSuccess { response -> update { it.copy(results = response.results, resultsDashboard = dashboard ?: it.resultsDashboard, loadingResults = false, resultError = null) } }
+            .onFailure { error -> update { it.copy(loadingResults = false, resultError = error.message ?: "Results could not refresh") } }
     }
 
-    fun selectSport(sport: String) { update { it.copy(selectedSport = sport) }; loadToday(); loadResults() }
-    fun applyFilters(sport: String, competition: String, confidence: String, market: String) {
-        update { it.copy(selectedSport = sport, selectedCompetition = competition, selectedConfidence = confidence, selectedMarket = market) }
-        loadToday(); loadResults()
+    fun selectSport(sport: String) { update { it.copy(selectedSport = sport) }; loadToday(); loadLive(); loadResults() }
+    fun applyFilters(sport: String, country: String, competition: String, confidence: String, market: String) {
+        update { it.copy(selectedSport = sport, selectedCountry = country, selectedCompetition = competition, selectedConfidence = confidence, selectedMarket = market) }
+        loadToday(); loadLive(); loadResults()
     }
-    fun clearAdvancedFilters() { update { it.copy(selectedSport = "", selectedCompetition = "", selectedConfidence = "", selectedMarket = "") }; loadToday(); loadResults() }
+    fun clearAdvancedFilters() { update { it.copy(selectedSport = "", selectedCountry = "", selectedCompetition = "", selectedConfidence = "", selectedMarket = "") }; loadToday(); loadLive(); loadResults() }
     fun setTodayMode(mode: String) { update { it.copy(todayMode = mode) }; loadToday() }
     fun setResultOutcome(outcome: String) { update { it.copy(resultOutcome = outcome) }; loadResults() }
     fun setResultDays(days: Int) { update { it.copy(resultDays = days) }; loadResults() }
 
     fun login(email: String, password: String, onDone: () -> Unit) = viewModelScope.launch {
         update { it.copy(authBusy = true, authError = null) }
-        attempt { repository.login(email, password) }
-            .onSuccess { account ->
-                update { it.copy(account = account, authBusy = false, authError = null) }
-                loadToday(); loadLive(); loadNotifications(); onDone()
-            }
-            .onFailure { error -> update { it.copy(authBusy = false, authError = error.message ?: "Sign in failed") } }
+        attempt { repository.login(email, password) }.onSuccess { account -> update { it.copy(account = account, authBusy = false, authError = null) }; loadToday(); loadLive(); loadNotifications(); onDone() }.onFailure { error -> update { it.copy(authBusy = false, authError = error.message ?: "Sign in failed") } }
     }
-
     fun register(name: String, email: String, password: String, onDone: () -> Unit) = viewModelScope.launch {
         update { it.copy(authBusy = true, authError = null) }
-        attempt { repository.register(name, email, password) }
-            .onSuccess { account ->
-                update { it.copy(account = account, authBusy = false, authError = null) }
-                loadToday(); loadLive(); loadNotifications(); onDone()
-            }
-            .onFailure { error -> update { it.copy(authBusy = false, authError = error.message ?: "Account creation failed") } }
+        attempt { repository.register(name, email, password) }.onSuccess { account -> update { it.copy(account = account, authBusy = false, authError = null) }; loadToday(); loadLive(); loadNotifications(); onDone() }.onFailure { error -> update { it.copy(authBusy = false, authError = error.message ?: "Account creation failed") } }
     }
-
-    fun logout() = viewModelScope.launch {
-        attempt { repository.logout() }
-        update { it.copy(account = null, assessments = emptyList(), notifications = null, matchIntelligence = null, leagueForecasts = emptyList()) }
-        loadLive(); loadToday()
-    }
-
-    fun refreshAccount() = viewModelScope.launch {
-        if (!attempt { repository.hasSession() }.getOrDefault(false)) return@launch
-        attempt { repository.me() }.onSuccess { account -> update { it.copy(account = account, loadingAccount = false) } }
-    }
-
-    fun checkout(plan: String, phone: String) = viewModelScope.launch {
-        update { it.copy(paymentBusy = true, paymentMessage = null) }
-        attempt { repository.checkout(plan, phone) }
-            .onSuccess { response -> update { it.copy(paymentBusy = false, paymentMessage = response.message) }; refreshAccount() }
-            .onFailure { error -> update { it.copy(paymentBusy = false, paymentMessage = error.message ?: "Payment request failed") } }
-    }
-
-    fun loadNotifications() = viewModelScope.launch {
-        if (state.value.account == null) return@launch
-        attempt { repository.notificationSettings() }.onSuccess { settings -> update { it.copy(notifications = settings) } }
-    }
-
-    fun saveNotifications(settings: NotificationSettings) = viewModelScope.launch {
-        attempt { repository.updateNotificationSettings(settings) }.onSuccess { saved -> update { it.copy(notifications = saved) } }
-    }
-
-    fun loadMatch(eventId: String) = viewModelScope.launch {
-        update { it.copy(matchIntelligence = null) }
-        attempt { repository.matchIntelligence(eventId) }.onSuccess { data -> update { it.copy(matchIntelligence = data) } }
-    }
-
-    fun loadLeagueForecasts() = viewModelScope.launch {
-        attempt { repository.leagueForecasts() }.onSuccess { data -> update { it.copy(leagueForecasts = data.leagues) } }
-    }
-
+    fun logout() = viewModelScope.launch { attempt { repository.logout() }; update { it.copy(account = null, assessments = emptyList(), notifications = null, matchIntelligence = null, leagueForecasts = emptyList()) }; loadLive(); loadToday() }
+    fun refreshAccount() = viewModelScope.launch { if (!attempt { repository.hasSession() }.getOrDefault(false)) return@launch; attempt { repository.me() }.onSuccess { account -> update { it.copy(account = account, loadingAccount = false) } } }
+    fun checkout(plan: String, phone: String) = viewModelScope.launch { update { it.copy(paymentBusy = true, paymentMessage = null) }; attempt { repository.checkout(plan, phone) }.onSuccess { response -> update { it.copy(paymentBusy = false, paymentMessage = response.message) }; refreshAccount() }.onFailure { error -> update { it.copy(paymentBusy = false, paymentMessage = error.message ?: "Payment request failed") } } }
+    fun loadNotifications() = viewModelScope.launch { if (state.value.account == null) return@launch; attempt { repository.notificationSettings() }.onSuccess { settings -> update { it.copy(notifications = settings) } } }
+    fun saveNotifications(settings: NotificationSettings) = viewModelScope.launch { attempt { repository.updateNotificationSettings(settings) }.onSuccess { saved -> update { it.copy(notifications = saved) } } }
+    fun loadMatch(eventId: String) = viewModelScope.launch { update { it.copy(matchIntelligence = null) }; attempt { repository.matchIntelligence(eventId) }.onSuccess { data -> update { it.copy(matchIntelligence = data) } } }
+    fun loadLeagueForecasts() = viewModelScope.launch { attempt { repository.leagueForecasts() }.onSuccess { data -> update { it.copy(leagueForecasts = data.leagues) } } }
     fun clearPaymentMessage() = update { it.copy(paymentMessage = null) }
 
     companion object {
         fun factory(context: Context): ViewModelProvider.Factory = object : ViewModelProvider.Factory {
-            @Suppress("UNCHECKED_CAST")
-            override fun <T : ViewModel> create(modelClass: Class<T>): T = PrediqViewModel(PrediqRepository(context.applicationContext)) as T
+            @Suppress("UNCHECKED_CAST") override fun <T : ViewModel> create(modelClass: Class<T>): T = PrediqViewModel(PrediqRepository(context.applicationContext)) as T
         }
     }
 }
