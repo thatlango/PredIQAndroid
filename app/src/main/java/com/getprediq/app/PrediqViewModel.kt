@@ -50,14 +50,20 @@ class PrediqViewModel(private val repository: PrediqRepository) : ViewModel() {
 
     private fun update(transform: (PrediqUiState) -> PrediqUiState) { state.value = transform(state.value) }
 
+    private suspend fun <T> attempt(block: suspend () -> T): Result<T> = try {
+        Result.success(block())
+    } catch (error: Throwable) {
+        Result.failure(error)
+    }
+
     private fun bootstrap() = viewModelScope.launch {
-        val session = runCatching { repository.hasSession() }.getOrDefault(false)
-        val picksJob = async { runCatching { repository.picks() }.getOrNull() }
-        val dashboardJob = async { runCatching { repository.resultsDashboard() }.getOrNull() }
-        val plansJob = async { runCatching { repository.plans() }.getOrNull() }
-        val capsJob = async { runCatching { repository.paymentCapabilities() }.getOrNull() }
-        val filtersJob = async { runCatching { repository.filters() }.getOrNull() }
-        val account = if (session) runCatching { repository.me() }.getOrNull() else null
+        val session = attempt { repository.hasSession() }.getOrDefault(false)
+        val picksJob = async { attempt { repository.picks() }.getOrNull() }
+        val dashboardJob = async { attempt { repository.resultsDashboard() }.getOrNull() }
+        val plansJob = async { attempt { repository.plans() }.getOrNull() }
+        val capsJob = async { attempt { repository.paymentCapabilities() }.getOrNull() }
+        val filtersJob = async { attempt { repository.filters() }.getOrNull() }
+        val account = if (session) attempt { repository.me() }.getOrNull() else null
         update {
             it.copy(
                 account = account,
@@ -80,7 +86,7 @@ class PrediqViewModel(private val repository: PrediqRepository) : ViewModel() {
         if (!fullAccess) { update { it.copy(loadingToday = false) }; return@launch }
         val current = state.value
         val status = if (current.todayMode == "upcoming") "upcoming" else null
-        runCatching {
+        attempt {
             repository.assessments(
                 status = status,
                 sport = current.selectedSport.takeIf { it.isNotBlank() },
@@ -88,14 +94,17 @@ class PrediqViewModel(private val repository: PrediqRepository) : ViewModel() {
                 confidence = current.selectedConfidence.takeIf { it.isNotBlank() },
                 market = current.selectedMarket.takeIf { it.isNotBlank() },
             )
-        }.onSuccess { response -> update { it.copy(assessments = response.assessments, loadingToday = false, todayError = null) } }
-            .onFailure { error -> update { it.copy(loadingToday = false, todayError = error.message ?: "Could not refresh today’s analysis") } }
+        }.onSuccess { response ->
+            update { it.copy(assessments = response.assessments, loadingToday = false, todayError = null) }
+        }.onFailure { error ->
+            update { it.copy(loadingToday = false, todayError = error.message ?: "Could not refresh today’s analysis") }
+        }
     }
 
     fun loadLive() = viewModelScope.launch {
         val hadData = state.value.live != null
         update { it.copy(loadingLive = !hadData, liveError = null) }
-        runCatching { repository.live(fullAccess) }
+        attempt { repository.live(fullAccess) }
             .onSuccess { response -> update { it.copy(live = response, loadingLive = false, liveError = null) } }
             .onFailure { error -> update { it.copy(loadingLive = false, liveError = error.message ?: "Live could not refresh") } }
     }
@@ -103,8 +112,8 @@ class PrediqViewModel(private val repository: PrediqRepository) : ViewModel() {
     fun loadResults() = viewModelScope.launch {
         update { it.copy(loadingResults = it.results.isEmpty(), resultError = null) }
         val current = state.value
-        val dash = async { runCatching { repository.resultsDashboard() }.getOrNull() }
-        runCatching {
+        val dashboardJob = async { attempt { repository.resultsDashboard() }.getOrNull() }
+        val result = attempt {
             repository.results(
                 days = current.resultDays,
                 outcome = current.resultOutcome.takeIf { it.isNotBlank() },
@@ -113,8 +122,13 @@ class PrediqViewModel(private val repository: PrediqRepository) : ViewModel() {
                 market = current.selectedMarket.takeIf { it.isNotBlank() },
                 confidence = current.selectedConfidence.takeIf { it.isNotBlank() },
             )
-        }.onSuccess { response -> update { it.copy(results = response.results, resultsDashboard = dash.await() ?: it.resultsDashboard, loadingResults = false) } }
-            .onFailure { error -> update { it.copy(loadingResults = false, resultError = error.message ?: "Results could not refresh") } }
+        }
+        val dashboard = dashboardJob.await()
+        result.onSuccess { response ->
+            update { it.copy(results = response.results, resultsDashboard = dashboard ?: it.resultsDashboard, loadingResults = false, resultError = null) }
+        }.onFailure { error ->
+            update { it.copy(loadingResults = false, resultError = error.message ?: "Results could not refresh") }
+        }
     }
 
     fun selectSport(sport: String) { update { it.copy(selectedSport = sport) }; loadToday(); loadResults() }
@@ -129,52 +143,58 @@ class PrediqViewModel(private val repository: PrediqRepository) : ViewModel() {
 
     fun login(email: String, password: String, onDone: () -> Unit) = viewModelScope.launch {
         update { it.copy(authBusy = true, authError = null) }
-        runCatching { repository.login(email, password) }
-            .onSuccess { account -> update { it.copy(account = account, authBusy = false, authError = null) }; loadToday(); loadLive(); loadNotifications(); onDone() }
+        attempt { repository.login(email, password) }
+            .onSuccess { account ->
+                update { it.copy(account = account, authBusy = false, authError = null) }
+                loadToday(); loadLive(); loadNotifications(); onDone()
+            }
             .onFailure { error -> update { it.copy(authBusy = false, authError = error.message ?: "Sign in failed") } }
     }
 
     fun register(name: String, email: String, password: String, onDone: () -> Unit) = viewModelScope.launch {
         update { it.copy(authBusy = true, authError = null) }
-        runCatching { repository.register(name, email, password) }
-            .onSuccess { account -> update { it.copy(account = account, authBusy = false, authError = null) }; loadToday(); loadLive(); loadNotifications(); onDone() }
+        attempt { repository.register(name, email, password) }
+            .onSuccess { account ->
+                update { it.copy(account = account, authBusy = false, authError = null) }
+                loadToday(); loadLive(); loadNotifications(); onDone()
+            }
             .onFailure { error -> update { it.copy(authBusy = false, authError = error.message ?: "Account creation failed") } }
     }
 
     fun logout() = viewModelScope.launch {
-        repository.logout()
+        attempt { repository.logout() }
         update { it.copy(account = null, assessments = emptyList(), notifications = null, matchIntelligence = null, leagueForecasts = emptyList()) }
         loadLive(); loadToday()
     }
 
     fun refreshAccount() = viewModelScope.launch {
-        if (!repository.hasSession()) return@launch
-        runCatching { repository.me() }.onSuccess { account -> update { it.copy(account = account, loadingAccount = false) } }
+        if (!attempt { repository.hasSession() }.getOrDefault(false)) return@launch
+        attempt { repository.me() }.onSuccess { account -> update { it.copy(account = account, loadingAccount = false) } }
     }
 
     fun checkout(plan: String, phone: String) = viewModelScope.launch {
         update { it.copy(paymentBusy = true, paymentMessage = null) }
-        runCatching { repository.checkout(plan, phone) }
+        attempt { repository.checkout(plan, phone) }
             .onSuccess { response -> update { it.copy(paymentBusy = false, paymentMessage = response.message) }; refreshAccount() }
             .onFailure { error -> update { it.copy(paymentBusy = false, paymentMessage = error.message ?: "Payment request failed") } }
     }
 
     fun loadNotifications() = viewModelScope.launch {
         if (state.value.account == null) return@launch
-        runCatching { repository.notificationSettings() }.onSuccess { settings -> update { it.copy(notifications = settings) } }
+        attempt { repository.notificationSettings() }.onSuccess { settings -> update { it.copy(notifications = settings) } }
     }
 
     fun saveNotifications(settings: NotificationSettings) = viewModelScope.launch {
-        runCatching { repository.updateNotificationSettings(settings) }.onSuccess { saved -> update { it.copy(notifications = saved) } }
+        attempt { repository.updateNotificationSettings(settings) }.onSuccess { saved -> update { it.copy(notifications = saved) } }
     }
 
     fun loadMatch(eventId: String) = viewModelScope.launch {
         update { it.copy(matchIntelligence = null) }
-        runCatching { repository.matchIntelligence(eventId) }.onSuccess { data -> update { it.copy(matchIntelligence = data) } }
+        attempt { repository.matchIntelligence(eventId) }.onSuccess { data -> update { it.copy(matchIntelligence = data) } }
     }
 
     fun loadLeagueForecasts() = viewModelScope.launch {
-        runCatching { repository.leagueForecasts() }.onSuccess { data -> update { it.copy(leagueForecasts = data.leagues) } }
+        attempt { repository.leagueForecasts() }.onSuccess { data -> update { it.copy(leagueForecasts = data.leagues) } }
     }
 
     fun clearPaymentMessage() = update { it.copy(paymentMessage = null) }
