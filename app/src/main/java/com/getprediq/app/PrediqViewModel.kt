@@ -80,7 +80,9 @@ class PrediqViewModel(private val repository: PrediqRepository) : ViewModel() {
         if (!fullAccess) return@launch
         val picks = async { attempt { repository.picks() }.getOrNull()?.picks.orEmpty() }
         val filters = async { attempt { repository.filters() }.getOrNull() ?: FilterOptions() }
-        update { it.copy(picks = picks.await(), filterOptions = filters.await()) }
+        val loadedPicks = picks.await()
+        val loadedFilters = filters.await()
+        update { it.copy(picks = loadedPicks, filterOptions = loadedFilters) }
         loadToday(); loadLive(); loadResults()
     }
 
