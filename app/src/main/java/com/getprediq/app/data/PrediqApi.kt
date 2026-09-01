@@ -48,11 +48,11 @@ class PrediqApi(private val session: SessionStore) {
     }
 
     suspend fun login(email: String, password: String): AuthResponse = json.decodeFromString(raw("auth/login", "POST", buildJsonObject { put("email", email.trim()); put("password", password) }.toString()))
-    suspend fun register(name: String, email: String, password: String, country: String, consent: Boolean): AuthResponse = json.decodeFromString(raw("auth/register", "POST", buildJsonObject { put("name", name.trim()); put("email", email.trim()); put("password", password); put("country", country.trim().uppercase()); put("consent", consent) }.toString()))
+    suspend fun register(name: String, email: String, password: String, country: String, consent: Boolean, referralCode: String?): AuthResponse = json.decodeFromString(raw("auth/register", "POST", buildJsonObject { put("name", name.trim()); put("email", email.trim()); put("password", password); put("country", country.trim().uppercase()); put("consent", consent); referralCode?.takeIf(String::isNotBlank)?.let { put("referral_code", it) } }.toString()))
     suspend fun logout() { runCatching { raw("auth/logout", "POST", "{}", true) }; session.clear() }
     suspend fun me() = json.decodeFromString<AccountResponse>(raw("me", auth = true))
-    suspend fun picks() = json.decodeFromString<PicksResponse>(raw("picks-of-day"))
-    suspend fun filters() = json.decodeFromString<FilterOptions>(raw("filters"))
+    suspend fun picks() = json.decodeFromString<PicksResponse>(raw("picks-of-day", auth = true))
+    suspend fun filters() = json.decodeFromString<FilterOptions>(raw("filters", auth = true))
 
     suspend fun assessments(status: String? = null, sport: String? = null, country: String? = null, competition: String? = null, confidence: String? = null, market: String? = null): AssessmentsResponse {
         val q = mutableListOf<String>(); fun add(key: String, value: String?) { if (!value.isNullOrBlank()) q += "$key=${enc(value)}" }
@@ -60,13 +60,13 @@ class PrediqApi(private val session: SessionStore) {
         return json.decodeFromString(raw("assessments${if (q.isEmpty()) "" else "?" + q.joinToString("&")}", auth = true))
     }
 
-    suspend fun live(full: Boolean) = json.decodeFromString<LiveResponse>(raw(if (full) "live" else "live/preview", auth = full))
-    suspend fun resultsDashboard() = json.decodeFromString<ResultsDashboard>(raw("results/dashboard"))
+    suspend fun live() = json.decodeFromString<LiveResponse>(raw("live", auth = true))
+    suspend fun resultsDashboard() = json.decodeFromString<ResultsDashboard>(raw("results/dashboard", auth = true))
 
     suspend fun results(days: Int = 30, outcome: String? = null, sport: String? = null, country: String? = null, competition: String? = null, market: String? = null, confidence: String? = null): ResultsResponse {
         val q = mutableListOf("days=$days"); fun add(key: String, value: String?) { if (!value.isNullOrBlank()) q += "$key=${enc(value)}" }
         add("outcome", outcome); add("sport", sport); add("country", country); add("competition", competition); add("market", market); add("confidence", confidence)
-        return json.decodeFromString(raw("results?${q.joinToString("&")}"))
+        return json.decodeFromString(raw("results?${q.joinToString("&")}", auth = true))
     }
 
     suspend fun plans() = json.decodeFromString<PlansResponse>(raw("plans"))
@@ -80,8 +80,11 @@ class PrediqApi(private val session: SessionStore) {
     }
     suspend fun matchIntelligence(eventId: String) = json.decodeFromString<MatchIntelligenceResponse>(raw("intelligence/matches/${enc(eventId)}", auth = true))
     suspend fun leagueForecasts() = json.decodeFromString<LeagueForecastsResponse>(raw("intelligence/league-winners", auth = true))
-    suspend fun players(sport: String = "football", query: String = "") = json.decodeFromString<PlayersResponse>(raw("intelligence/players?sport=${enc(sport)}&limit=50${if (query.isBlank()) "" else "&q=${enc(query)}"}"))
-    suspend fun player(playerId: String) = json.decodeFromString<PlayerDetail>(raw("intelligence/player?player_id=${enc(playerId)}"))
-    suspend fun squad(team: String) = json.decodeFromString<SquadDepthResponse>(raw("intelligence/squad?team=${enc(team)}&sport=football"))
+    suspend fun players(sport: String = "football", query: String = "") = json.decodeFromString<PlayersResponse>(raw("intelligence/players?sport=${enc(sport)}&limit=50${if (query.isBlank()) "" else "&q=${enc(query)}"}", auth = true))
+    suspend fun player(playerId: String) = json.decodeFromString<PlayerDetail>(raw("intelligence/player?player_id=${enc(playerId)}", auth = true))
+    suspend fun squad(team: String) = json.decodeFromString<SquadDepthResponse>(raw("intelligence/squad?team=${enc(team)}&sport=football", auth = true))
+    suspend fun affiliate() = json.decodeFromString<AffiliateDashboard>(raw("me/affiliate", auth = true))
+    suspend fun startTuku(state: String, challenge: String, referralCode: String?): TukuStartResponse = json.decodeFromString(raw("auth/tuku/mobile/start", "POST", buildJsonObject { put("state", state); put("code_challenge", challenge); referralCode?.takeIf(String::isNotBlank)?.let { put("referral_code", it) } }.toString()))
+    suspend fun exchangeTuku(code: String, state: String, verifier: String): AuthResponse = json.decodeFromString(raw("auth/tuku/mobile/exchange", "POST", buildJsonObject { put("code", code); put("state", state); put("code_verifier", verifier) }.toString()))
     private fun enc(value: String): String = URLEncoder.encode(value, StandardCharsets.UTF_8.toString())
 }

@@ -45,7 +45,7 @@ fun TodayScreen(state: PrediqUiState, vm: PrediqViewModel, onAuth: () -> Unit, o
                     SubscriptionPill(state.account?.subscriptionProgress)
                 }
                 Text(greeting(state.account?.user?.displayName), style = MaterialTheme.typography.headlineMedium)
-                Text("PredIQ has already done the comparison. Here is what matters now.", color = PrediqMuted)
+                Text("Football, basketball, cricket, tennis and more—held to one evidence standard.", color = PrediqMuted)
             }
         }
         item { SportChips(primarySports(state.filterOptions.sports), state.selectedSport, vm::selectSport) }
@@ -73,7 +73,7 @@ fun TodayScreen(state: PrediqUiState, vm: PrediqViewModel, onAuth: () -> Unit, o
         when {
             state.loadingToday -> item { StateCard("Analysing current games…", "PredIQ is combining the latest match and competition context.") }
             state.todayError != null -> item { StateCard("Could not refresh intelligence", state.todayError, error = true, action = "Retry", onAction = vm::loadToday) }
-            !vm.fullAccess -> item { StateCard("Full analysis is locked", "Sign in and activate a plan to see the current intelligence feed. Picks of the Day remain visible above.", action = if (state.account == null) "Sign in" else "View Account", onAction = onAuth) }
+            !vm.fullAccess -> item { StateCard("Full analysis is locked", "Start a trial or activate a plan to open PredIQ.", action = if (state.account == null) "Start trial" else "View Account", onAction = onAuth) }
             state.assessments.isEmpty() -> item { StateCard("No strong assessment in this view", "PredIQ will not fill the list with weak or unrelated picks. Try another sport or check Upcoming.") }
             else -> items(state.assessments.take(30), key = { it.eventId }) { assessment -> AssessmentCard(assessment) { onMatch(assessment.eventId) } }
         }
@@ -159,15 +159,16 @@ fun ResultsScreen(state: PrediqUiState, vm: PrediqViewModel) {
 
 @Composable
 fun AccountScreen(state: PrediqUiState, vm: PrediqViewModel, onAuth: () -> Unit, onPlan: (PlanDto) -> Unit, onNotifications: () -> Unit, onResponsible: () -> Unit) {
+    val context = LocalContext.current
     LazyColumn(
         modifier = Modifier.fillMaxSize().background(PrediqBackground),
         contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 18.dp, bottom = 100.dp),
         verticalArrangement = Arrangement.spacedBy(24.dp),
     ) {
-        item { Text("Account", style = MaterialTheme.typography.headlineMedium) }
+        item { Column(verticalArrangement=Arrangement.spacedBy(5.dp)){ Text("Start with seven days on us.", style = MaterialTheme.typography.headlineMedium); Text("Everything is included across web and Android.",color=PrediqMuted) } }
         val account = state.account
         if (account == null) {
-            item { PrediqCard(Modifier.fillMaxWidth()) { Icon(Icons.Outlined.AccountCircle, null, tint = PrediqBlue, modifier = Modifier.size(52.dp)); Text("Sign in to PredIQ", style = MaterialTheme.typography.titleLarge); Text("Keep your subscription, results and notification choices available across devices.", color = PrediqMuted); Button(onClick = onAuth, modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)) { Text("Sign in or create account") } } }
+            item { PrediqCard(Modifier.fillMaxWidth()) { Icon(Icons.Outlined.LockOpen, null, tint = PrediqBlue, modifier = Modifier.size(52.dp)); Text("Seven days of full access", style = MaterialTheme.typography.titleLarge); Text("No limited preview. Create one Tuku account and open every sport, live view, result and intelligence screen.", color = PrediqMuted); Button(onClick = onAuth, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) { Text("Start 7-day trial") }; Text("Plans start at UGX 15,000. Pay now and paid time starts after your trial.",color=PrediqMuted,style=MaterialTheme.typography.bodySmall) } }
         } else {
             item {
                 PrediqCard(Modifier.fillMaxWidth()) {
@@ -176,9 +177,13 @@ fun AccountScreen(state: PrediqUiState, vm: PrediqViewModel, onAuth: () -> Unit,
                 }
             }
             if (!account.access.subscriptionBypass) {
-                item { PrediqSectionTitle(if (account.access.fullSelections) "Extend Subscription" else "Choose a Plan") }
+                item { PrediqSectionTitle(if (account.subscriptionState == "trial") "Pay now—your trial stays intact" else if (account.access.fullSelections) "Extend Subscription" else "Choose a Plan") }
                 items(state.plans, key = { it.code }) { plan -> PlanCard(plan, account.access.fullSelections) { onPlan(plan) } }
                 if (!state.paymentCapabilities.mobileMoney) item { StateCard("Mobile money is not active yet", state.paymentCapabilities.message) }
+            }
+            state.affiliate?.let { affiliate ->
+                item { PrediqSectionTitle("Recommend PredIQ") }
+                item { PrediqCard(Modifier.fillMaxWidth()) { Text("Earn ${(affiliate.commissionRate*100).toInt()}% for ${affiliate.commissionMonths} months",style=MaterialTheme.typography.titleLarge); Text("Share your link and earn on every settled payment from each referred customer.",color=PrediqMuted); Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(10.dp)){ SummaryMetric("REFERRED",affiliate.referrals.toString(),"${affiliate.conversions} converted",Modifier.weight(1f)); SummaryMetric("AVAILABLE",ugx(affiliate.availableUgx),"${affiliate.holdingDays}-day hold",Modifier.weight(1f),highlight=true) }; Button(onClick={ val intent=Intent(Intent.ACTION_SEND).apply{type="text/plain";putExtra(Intent.EXTRA_TEXT,"Try PredIQ with 7 days of full access: ${affiliate.shareUrl}")};context.startActivity(Intent.createChooser(intent,"Share PredIQ")) },modifier=Modifier.fillMaxWidth()){Icon(Icons.Outlined.Share,null);Spacer(Modifier.width(8.dp));Text("Share referral link")}; Text("Minimum payout ${ugx(affiliate.minimumPayoutUgx)}",color=PrediqMuted,style=MaterialTheme.typography.bodySmall) } }
             }
             item {
                 PrediqCard(Modifier.fillMaxWidth()) {
@@ -258,7 +263,7 @@ fun LeagueWinnersScreen(leagues: List<LeagueForecast>, onBack: () -> Unit) {
 @Composable private fun BackHeader(title: String, onBack: () -> Unit, onShare: (() -> Unit)? = null) { Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) { IconButton(onClick = onBack) { Icon(Icons.Outlined.ArrowBack, "Back", tint = PrediqBlue) }; Text(title, style = MaterialTheme.typography.titleLarge, color = PrediqBlue, modifier = Modifier.weight(1f), textAlign = TextAlign.Center); if (onShare != null) IconButton(onClick = onShare) { Icon(Icons.Outlined.Share, "Share", tint = PrediqBlue) } else Spacer(Modifier.width(48.dp)) } }
 @Composable private fun FormCard(team: String, form: String, modifier: Modifier) { PrediqCard(modifier) { Text(team, fontWeight = FontWeight.SemiBold, maxLines = 1); Text("Last 5", fontSize = 11.sp, color = PrediqMuted); Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) { val values = form.split(' ').filter { it.isNotBlank() }.take(5); if (values.isEmpty()) Text("Limited history", color = PrediqMuted, fontSize = 12.sp) else values.forEach { value -> val color = when (value) { "W" -> PrediqGreen; "L" -> PrediqRed; else -> PrediqMuted }; Box(Modifier.size(25.dp).background(color.copy(alpha = .13f), CircleShape), contentAlignment = Alignment.Center) { Text(value, color = color, fontWeight = FontWeight.Bold, fontSize = 11.sp) } } } } }
 @Composable private fun InsightCard(icon: androidx.compose.ui.graphics.vector.ImageVector, title: String, body: String, accent: Color) { PrediqCard(Modifier.fillMaxWidth()) { Row(verticalAlignment = Alignment.Top) { Icon(icon, null, tint = accent); Spacer(Modifier.width(10.dp)); Column(Modifier.weight(1f)) { Text(title, style = MaterialTheme.typography.labelLarge, color = PrediqMuted); Text(body, style = MaterialTheme.typography.bodyMedium) } } } }
-private fun primarySports(sports: List<String>): List<String> = (listOf("football", "basketball", "tennis", "cricket") + sports).distinct().take(10)
+private fun primarySports(sports: List<String>): List<String> = (listOf("football", "basketball", "cricket", "baseball", "rugby", "tennis") + sports).distinct().take(10)
 private fun greeting(name: String?): String { val hour = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY); val g = when { hour < 12 -> "Good morning"; hour < 17 -> "Good afternoon"; else -> "Good evening" }; return if (name.isNullOrBlank()) "$g." else "$g, ${name.substringBefore(' ')}." }
 private fun subscriptionLabel(account: AccountResponse): String = if (account.access.subscriptionBypass) "Full Access" else account.subscriptionProgress?.let { "${account.subscription?.name ?: "Premium"}: ${it.daysRemaining} days left" } ?: account.subscriptionState.replace('_', ' ').replaceFirstChar { it.uppercase() }
 private fun formString(teamForm: kotlinx.serialization.json.JsonObject?, side: String): String = runCatching { teamForm?.get(side)?.jsonObject?.get("overall")?.jsonObject?.get("form")?.jsonPrimitive?.contentOrNull.orEmpty() }.getOrDefault("")
