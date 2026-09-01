@@ -26,7 +26,7 @@ import com.getprediq.app.ui.*
 import com.getprediq.app.ui.theme.PrediqBlue
 import com.getprediq.app.ui.theme.PrediqMuted
 
-private enum class MainTab(val label: String) { Today("Today"), Live("Live"), Results("Results"), Account("Account") }
+private enum class MainTab(val label: String) { Today("Today"), Live("Live"), Results("Results"), Explore("Explore"), Account("Account") }
 
 @Composable
 fun PrediqApp() {
@@ -50,10 +50,10 @@ private fun MainTabs(state: PrediqUiState, vm: PrediqViewModel, onMatch: (String
     fun requestAccess() { if (state.account == null) authOpen = true else tab = MainTab.Account }
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
-        bottomBar = { NavigationBar(containerColor = MaterialTheme.colorScheme.surface, tonalElevation = 2.dp) { MainTab.entries.forEach { item -> val icon = when (item) { MainTab.Today -> Icons.Outlined.Today; MainTab.Live -> Icons.Outlined.Sensors; MainTab.Results -> Icons.Outlined.Analytics; MainTab.Account -> Icons.Outlined.Person }; NavigationBarItem(selected = tab == item, onClick = { tab = item }, icon = { Icon(icon, null) }, label = { Text(item.label) }) } } },
+        bottomBar = { NavigationBar(containerColor = MaterialTheme.colorScheme.surface, tonalElevation = 2.dp) { MainTab.entries.forEach { item -> val icon = when (item) { MainTab.Today -> Icons.Outlined.Today; MainTab.Live -> Icons.Outlined.Sensors; MainTab.Results -> Icons.Outlined.Analytics; MainTab.Explore -> Icons.Outlined.Explore; MainTab.Account -> Icons.Outlined.Person }; NavigationBarItem(selected = tab == item, onClick = { tab = item }, icon = { Icon(icon, null) }, label = { Text(item.label) }) } } },
         floatingActionButton = { if (tab == MainTab.Today || tab == MainTab.Live || tab == MainTab.Results) SmallFloatingActionButton(onClick = { filtersOpen = true }, containerColor = MaterialTheme.colorScheme.surface) { Icon(Icons.Outlined.Tune, "Filters", tint = PrediqBlue) } }
     ) { padding ->
-        Box(Modifier.padding(bottom = padding.calculateBottomPadding())) { when (tab) { MainTab.Today -> TodayScreen(state, vm, ::requestAccess, onMatch, onLeagueWinners); MainTab.Live -> LiveScreen(state, vm, ::requestAccess, onMatch); MainTab.Results -> ResultsScreen(state, vm); MainTab.Account -> AccountScreen(state, vm, { authOpen = true }, { paymentPlan = it }, { notificationsOpen = true }, { responsibleOpen = true }) } }
+        Box(Modifier.padding(bottom = padding.calculateBottomPadding())) { when (tab) { MainTab.Today -> TodayScreen(state, vm, ::requestAccess, onMatch, onLeagueWinners); MainTab.Live -> LiveScreen(state, vm, ::requestAccess, onMatch); MainTab.Results -> ResultsScreen(state, vm); MainTab.Explore -> ExploreScreen(state, vm); MainTab.Account -> AccountScreen(state, vm, { authOpen = true }, { paymentPlan = it }, { notificationsOpen = true }, { responsibleOpen = true }) } }
     }
     if (authOpen) AuthSheet(state, vm) { authOpen = false }; paymentPlan?.let { plan -> PaymentSheet(plan, state, vm) { paymentPlan = null } }; if (notificationsOpen) NotificationSheet(state, vm) { notificationsOpen = false }; if (responsibleOpen) ResponsibleUseSheet { responsibleOpen = false }; if (filtersOpen) FilterSheet(state, vm) { filtersOpen = false }
 }
@@ -61,12 +61,13 @@ private fun MainTabs(state: PrediqUiState, vm: PrediqViewModel, onMatch: (String
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun AuthSheet(state: PrediqUiState, vm: PrediqViewModel, onClose: () -> Unit) {
-    var register by rememberSaveable { mutableStateOf(false) }; var name by rememberSaveable { mutableStateOf("") }; var email by rememberSaveable { mutableStateOf("") }; var password by rememberSaveable { mutableStateOf("") }
+    var register by rememberSaveable { mutableStateOf(false) }; var name by rememberSaveable { mutableStateOf("") }; var email by rememberSaveable { mutableStateOf("") }; var password by rememberSaveable { mutableStateOf("") }; var country by rememberSaveable { mutableStateOf("") }; var consent by rememberSaveable { mutableStateOf(false) }
     ModalBottomSheet(onDismissRequest = onClose) { Column(Modifier.fillMaxWidth().padding(20.dp).navigationBarsPadding(), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Text(if (register) "Create PredIQ account" else "Sign in to PredIQ", style = MaterialTheme.typography.headlineMedium); Text("One standalone PredIQ account keeps your subscription and intelligence preferences across devices.", color = PrediqMuted)
-        if (register) OutlinedTextField(name, { name = it }, label = { Text("Name") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+        if (register) { OutlinedTextField(name, { name = it }, label = { Text("Name") }, modifier = Modifier.fillMaxWidth(), singleLine = true); OutlinedTextField(country, { country = it.uppercase().take(2) }, label = { Text("Country code") }, placeholder = { Text("UG") }, modifier = Modifier.fillMaxWidth(), singleLine = true) }
         OutlinedTextField(email, { email = it }, label = { Text("Email") }, modifier = Modifier.fillMaxWidth(), singleLine = true); OutlinedTextField(password, { password = it }, label = { Text("Password") }, visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth(), singleLine = true)
-        state.authError?.let { Text(it, color = MaterialTheme.colorScheme.error) }; Button(onClick = { if (register) vm.register(name, email, password, onClose) else vm.login(email, password, onClose) }, enabled = !state.authBusy && email.isNotBlank() && password.length >= 8 && (!register || name.isNotBlank()), modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) { if (state.authBusy) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp) else Text(if (register) "Create account" else "Sign in") }
+        if (register) Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) { Checkbox(checked = consent, onCheckedChange = { consent = it }); Spacer(Modifier.width(8.dp)); Text("I agree to PredIQ’s terms and responsible-use notice.", color = PrediqMuted, modifier = Modifier.padding(top = 12.dp)) }
+        state.authError?.let { Text(it, color = MaterialTheme.colorScheme.error) }; Button(onClick = { if (register) vm.register(name, email, password, country, consent, onClose) else vm.login(email, password, onClose) }, enabled = !state.authBusy && email.isNotBlank() && password.length >= 8 && (!register || (name.isNotBlank() && country.length == 2 && consent)), modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) { if (state.authBusy) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp) else Text(if (register) "Create account" else "Sign in") }
         TextButton(onClick = { register = !register }, modifier = Modifier.align(Alignment.CenterHorizontally)) { Text(if (register) "Already have an account? Sign in" else "Create a PredIQ account") }
     } }
 }
