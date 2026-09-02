@@ -1,0 +1,47 @@
+name: Temporary push availability correction
+on:
+  push:
+    branches: [fix/push-provider-availability]
+permissions:
+  contents: write
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/push-provider-availability
+      - name: Correct unavailable push state
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('app/src/main/java/com/getprediq/app/PrediqAppV2.kt')
+          text = path.read_text()
+          replacements = [
+              (
+                  '    val scope = rememberCoroutineScope()\n    var local by remember(state.notifications) { mutableStateOf(state.notifications ?: NotificationSettings()) }',
+                  '    val scope = rememberCoroutineScope()\n    val pushConfigured = remember { context.resources.getIdentifier("google_app_id", "string", context.packageName) != 0 }\n    var local by remember(state.notifications) { mutableStateOf(state.notifications ?: NotificationSettings()) }',
+              ),
+              (
+                  '    LaunchedEffect(Unit) {\n        vm.loadNotifications()',
+                  '    LaunchedEffect(Unit) {\n        if (!pushConfigured) local = local.copy(pushEnabled = false)\n        vm.loadNotifications()',
+              ),
+              (
+                  '''            SettingSwitchV2("Push notifications", local.pushEnabled) { enabled ->\n                local = local.copy(pushEnabled = enabled)\n                if (enabled && Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)\n            }''',
+                  '''            SettingSwitchV2("Push notifications", local.pushEnabled && pushConfigured) { enabled ->\n                if (pushConfigured) {\n                    local = local.copy(pushEnabled = enabled)\n                    if (enabled && Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)\n                } else {\n                    local = local.copy(pushEnabled = false)\n                }\n            }\n            if (!pushConfigured) Text("Push alerts are unavailable in this build until PredIQ is linked to a Firebase app. Email and WhatsApp preferences still work.", color = PrediqMuted, style = MaterialTheme.typography.bodySmall)''',
+              ),
+          ]
+          for old, new in replacements:
+              if old not in text:
+                  raise SystemExit(f'Expected target not found: {old[:80]!r}')
+              text = text.replace(old, new, 1)
+          path.write_text(text)
+          PY
+      - name: Commit correction
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add app/src/main/java/com/getprediq/app/PrediqAppV2.kt
+          git commit -m 'fix: represent unavailable push provider honestly'
+          git push origin HEAD:fix/push-provider-availability
