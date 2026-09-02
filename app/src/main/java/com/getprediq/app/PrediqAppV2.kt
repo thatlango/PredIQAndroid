@@ -488,7 +488,7 @@ private fun FilterSheetV2(state: PrediqUiState, vm: PrediqViewModel, onClose: ()
         Column(Modifier.fillMaxWidth().padding(20.dp).navigationBarsPadding().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             Text("Filters", style = MaterialTheme.typography.headlineMedium)
             Text("Sport", style = MaterialTheme.typography.labelLarge, color = PrediqMuted)
-            ChoiceRowV2((listOf("") + state.filterOptions.sports).distinct(), sport) { if (it.isBlank()) "All" else it.replaceFirstChar(Char::uppercase) } { sport = it; competition = "" }
+            ChoiceRowV2((listOf("") + state.filterOptions.sports).distinct(), sport, { if (it.isBlank()) "All" else it.replaceFirstChar(Char::uppercase) }) { sport = it; competition = "" }
             Text("Country", style = MaterialTheme.typography.labelLarge, color = PrediqMuted)
             ChoiceRowV2(listOf("") + state.filterOptions.countries, country, { if (it.isBlank()) "All" else it }) { country = it }
             Text("League / Competition", style = MaterialTheme.typography.labelLarge, color = PrediqMuted)
