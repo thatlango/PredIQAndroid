@@ -2,6 +2,7 @@ package com.getprediq.app.data.v2
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 
 @Serializable data class V2Chance(
@@ -53,10 +54,9 @@ import kotlinx.serialization.json.JsonObject
 @Serializable data class V2Reason(val label: String = "", val direction: String? = null)
 @Serializable data class V2WatchOut(val label: String = "")
 @Serializable data class V2FollowState(val following: Boolean = false)
-
 @Serializable data class V2EntityRef(val id: String? = null, val name: String = "")
 @Serializable data class V2CompetitionRef(val id: String? = null, val name: String? = null, val country: String? = null)
-@Serializable data class V2Score(val home: String? = null, val away: String? = null, @SerialName("status_text") val statusText: String? = null)
+@Serializable data class V2Score(val home: JsonElement? = null, val away: JsonElement? = null, @SerialName("status_text") val statusText: String? = null)
 @Serializable data class V2Participants(val home: V2EntityRef = V2EntityRef(), val away: V2EntityRef = V2EntityRef())
 
 @Serializable data class V2Event(
@@ -74,6 +74,15 @@ import kotlinx.serialization.json.JsonObject
     val selection: String? = null,
     val label: String? = null,
     val line: Double? = null,
+)
+
+@Serializable data class V2LatestChange(val summary: String? = null, val at: String? = null)
+@Serializable data class V2ResultState(val outcome: String = "pending", val actual: JsonObject? = null, @SerialName("settled_at") val settledAt: String? = null)
+@Serializable data class V2ClosingMarket(
+    @SerialName("closing_odds") val closingOdds: Double? = null,
+    @SerialName("closing_probability") val closingProbability: Double? = null,
+    @SerialName("clv_probability") val clvProbability: Double? = null,
+    @SerialName("clv_price") val clvPrice: Double? = null,
 )
 
 @Serializable data class V2DecisionCard(
@@ -95,15 +104,6 @@ import kotlinx.serialization.json.JsonObject
     val actions: List<String> = emptyList(),
     val result: V2ResultState? = null,
     @SerialName("closing_market") val closingMarket: V2ClosingMarket? = null,
-)
-
-@Serializable data class V2LatestChange(val summary: String? = null, val at: String? = null)
-@Serializable data class V2ResultState(val outcome: String = "pending", val actual: JsonObject? = null, @SerialName("settled_at") val settledAt: String? = null)
-@Serializable data class V2ClosingMarket(
-    @SerialName("closing_odds") val closingOdds: Double? = null,
-    @SerialName("closing_probability") val closingProbability: Double? = null,
-    @SerialName("clv_probability") val clvProbability: Double? = null,
-    @SerialName("clv_price") val clvPrice: Double? = null,
 )
 
 @Serializable data class V2Viewer(@SerialName("display_name") val displayName: String? = null, val country: String? = null, val currency: String? = null)
@@ -260,17 +260,18 @@ import kotlinx.serialization.json.JsonObject
 @Serializable data class V2SearchResponse(@SerialName("contract_version") val contractVersion: String = "2.0", val status: String = "ok", val results: List<V2SearchResult> = emptyList())
 
 @Serializable data class V2TeamDetail(@SerialName("contract_version") val contractVersion: String = "2.0", val status: String = "ok", val team: JsonObject = JsonObject(emptyMap()), val profile: JsonObject = JsonObject(emptyMap()), @SerialName("matches_count") val matchesCount: Int = 0, val upcoming: List<V2Upcoming> = emptyList(), @SerialName("squad_summary") val squadSummary: JsonObject = JsonObject(emptyMap()), @SerialName("prediq_record") val prediqRecord: V2Record = V2Record(), @SerialName("updated_at") val updatedAt: String? = null)
-@Serializable data class V2PlayerDetail(@SerialName("contract_version") val contractVersion: String = "2.0", val status: String = "ok", val player: JsonObject = JsonObject(emptyMap()), @SerialName("current_signal") val currentSignal: JsonObject = JsonObject(emptyMap()), @SerialName("headline_stats") val headlineStats: List<JsonObject> = emptyList(), @SerialName("recent_activity") val recentActivity: List<JsonObject> = emptyList(), @SerialName("team_role") val teamRole: JsonObject = JsonObject(emptyMap()), @SerialName("data_quality") val dataQuality: JsonObject = JsonObject(emptyMap()), @SerialName("updated_at") val updatedAt: String? = null)
-@Serializable data class V2CompetitionDetail(@SerialName("contract_version") val contractVersion: String = "2.0", val status: String = "ok", val competition: JsonObject = JsonObject(emptyMap()), val profile: JsonObject = JsonObject(emptyMap()), val outlook: JsonObject = JsonObject(emptyMap()), val trends: JsonObject = JsonObject(emptyMap()), @SerialName("prediq_strengths") val prediqStrengths: List<JsonObject> = emptyList(), @SerialName("today_opportunities") val todayOpportunities: List<V2DecisionCard> = emptyList(), @SerialName("track_record") val trackRecord: V2Record = V2Record(), val teams: List<JsonObject> = emptyList(), @SerialName("updated_at") val updatedAt: String? = null)
+@Serializable data class V2PlayerDetail(@SerialName("contract_version") val contractVersion: String = "2.0", val status: String = "ok", val player: JsonObject = JsonObject(emptyMap()), @SerialName("current_signal") val currentSignal: JsonObject = JsonObject(emptyMap()), @SerialName("headline_stats") val headlineStats: JsonObject = JsonObject(emptyMap()), @SerialName("recent_activity") val recentActivity: List<JsonObject> = emptyList(), val signals: List<String> = emptyList(), @SerialName("data_quality") val dataQuality: JsonObject = JsonObject(emptyMap()), @SerialName("updated_at") val updatedAt: String? = null)
+@Serializable data class V2CompetitionDetail(@SerialName("contract_version") val contractVersion: String = "2.0", val status: String = "ok", val competition: JsonObject = JsonObject(emptyMap()), val profile: JsonObject = JsonObject(emptyMap()), val outlook: JsonObject = JsonObject(emptyMap()), val trends: JsonObject = JsonObject(emptyMap()), @SerialName("prediq_strengths") val prediqStrengths: List<JsonObject> = emptyList(), @SerialName("today_opportunities") val todayOpportunities: List<V2DecisionCard> = emptyList(), @SerialName("track_record") val trackRecord: List<JsonObject> = emptyList(), val teams: List<JsonObject> = emptyList(), @SerialName("updated_at") val updatedAt: String? = null)
 
 @Serializable data class V2Profile(val id: String = "", val name: String? = null, val email: String = "", val country: String? = null, val currency: String? = null)
-@Serializable data class V2Membership(val @SerialName("plan_name") val planName: String? = null, val state: String = "free", @SerialName("days_remaining") val daysRemaining: Int? = null, @SerialName("ends_at") val endsAt: String? = null, @SerialName("full_access") val fullAccess: Boolean = false)
-@Serializable data class V2FollowingSummary(val total: Int = 0, val teams: Int = 0, val matches: Int = 0, val leagues: Int = 0, val players: Int = 0)
-@Serializable data class V2AccountResponse(@SerialName("contract_version") val contractVersion: String = "2.0", val status: String = "ok", val profile: V2Profile = V2Profile(), val membership: V2Membership = V2Membership(), @SerialName("following_summary") val followingSummary: V2FollowingSummary = V2FollowingSummary(), @SerialName("notification_summary") val notificationSummary: JsonObject = JsonObject(emptyMap()), @SerialName("payments_summary") val paymentsSummary: JsonObject = JsonObject(emptyMap()), @SerialName("affiliate_summary") val affiliateSummary: JsonObject = JsonObject(emptyMap()))
+@Serializable data class V2Membership(@SerialName("plan_name") val planName: String? = null, val state: String = "free", @SerialName("days_remaining") val daysRemaining: Int? = null, @SerialName("ends_at") val endsAt: String? = null, @SerialName("full_access") val fullAccess: Boolean = false)
+@Serializable data class V2FollowingSummary(val total: Int = 0, val teams: Int = 0, @SerialName("events") val matches: Int = 0, @SerialName("competitions") val leagues: Int = 0, val players: Int = 0)
+@Serializable data class V2AccountResponse(@SerialName("contract_version") val contractVersion: String = "2.0", val status: String = "ok", val profile: V2Profile = V2Profile(), val membership: V2Membership = V2Membership(), @SerialName("following_summary") val followingSummary: V2FollowingSummary = V2FollowingSummary(), val notifications: JsonObject = JsonObject(emptyMap()), @SerialName("payments_summary") val paymentsSummary: JsonObject = JsonObject(emptyMap()), @SerialName("affiliate_summary") val affiliateSummary: JsonObject = JsonObject(emptyMap()))
 
 @Serializable data class V2FollowAlerts(@SerialName("prediction_changes") val predictionChanges: Boolean = true, val lineup: Boolean = true, val live: Boolean = true, val result: Boolean = true, @SerialName("team_news") val teamNews: Boolean = true)
-@Serializable data class V2Follow(val id: String = "", @SerialName("entity_type") val entityType: String = "event", @SerialName("entity_key") val entityKey: String = "", @SerialName("entity_label") val entityLabel: String? = null, val alerts: V2FollowAlerts = V2FollowAlerts(), val active: Boolean = true, @SerialName("created_at") val createdAt: String? = null)
+@Serializable data class V2Follow(val id: String = "", @SerialName("entity_type") val entityType: String = "event", @SerialName("entity_key") val entityKey: String = "", @SerialName("entity_label") val entityLabel: String? = null, @SerialName("alert_preferences") val alerts: V2FollowAlerts = V2FollowAlerts(), val active: Boolean = true, @SerialName("created_at") val createdAt: String? = null)
 @Serializable data class V2FollowsResponse(@SerialName("contract_version") val contractVersion: String = "2.0", val status: String = "ok", val follows: List<V2Follow> = emptyList())
+@Serializable data class V2FollowMutationResponse(@SerialName("contract_version") val contractVersion: String = "2.0", val status: String = "ok", val follow: V2Follow = V2Follow())
 
 @Serializable data class V2NotificationAlerts(@SerialName("daily_picks") val dailyPicks: Boolean = true, @SerialName("live_changes") val liveChanges: Boolean = true, @SerialName("lineup_changes") val lineupChanges: Boolean = true, val results: Boolean = true, val subscription: Boolean = true)
 @Serializable data class V2NotificationSettings(@SerialName("contract_version") val contractVersion: String = "2.0", val status: String = "ok", @SerialName("push_enabled") val pushEnabled: Boolean = true, @SerialName("email_enabled") val emailEnabled: Boolean = true, @SerialName("sms_enabled") val smsEnabled: Boolean = false, @SerialName("whatsapp_enabled") val whatsappEnabled: Boolean = true, val timezone: String = "Africa/Kampala", val alerts: V2NotificationAlerts = V2NotificationAlerts())
