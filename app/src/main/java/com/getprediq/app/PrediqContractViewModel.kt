@@ -9,6 +9,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.getprediq.app.data.SessionStore
 import com.getprediq.app.data.v2.*
+import com.getprediq.app.data.v3.*
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -33,6 +34,13 @@ data class PrediqContractState(
     val player: V2PlayerDetail? = null,
     val competition: V2CompetitionDetail? = null,
     val search: V2SearchResponse? = null,
+    val v3Slate: V3SlateResponse? = null,
+    val v3Bookmakers: V3BookmakerCatalog? = null,
+    val v3Ticket: V3TicketResponse? = null,
+    val v3Event: V3EventDetail? = null,
+    val v3TargetOdds: Double = 35.0,
+    val v3Risk: String = "balanced",
+    val v3Bookmaker: String = "prediq_reference",
     val searchQuery: String = "",
     val selectedSport: String = "",
     val selectedCompetition: String = "",
@@ -45,6 +53,7 @@ data class PrediqContractState(
 class PrediqContractViewModel(context: Context) : ViewModel() {
     private val session = SessionStore(context.applicationContext)
     private val api = V2Api(session)
+    private val v3Api = V3Api(session)
 
     var state by mutableStateOf(PrediqContractState())
         private set
@@ -74,6 +83,8 @@ class PrediqContractViewModel(context: Context) : ViewModel() {
             val accountJob = async { safe { api.me() }.getOrNull() }
             val followsJob = async { safe { api.follows() }.getOrNull() }
             val notificationsJob = async { safe { api.notifications() }.getOrNull() }
+            val v3BooksJob = async { safe { v3Api.priceSources() }.getOrNull() }
+            val v3SlateJob = async { safe { v3Api.slate(bookmaker = state.v3Bookmaker) }.getOrNull() }
             val today = todayJob.await()
             val live = liveJob.await()
             val summary = summaryJob.await()
@@ -82,11 +93,15 @@ class PrediqContractViewModel(context: Context) : ViewModel() {
             val account = accountJob.await()
             val follows = followsJob.await()
             val notifications = notificationsJob.await()
+            val v3Books = v3BooksJob.await()
+            val resolvedBookmaker = v3Books?.default ?: state.v3Bookmaker
+            val v3Slate = v3SlateJob.await()
             mutate {
                 it.copy(
                     ready = true, busy = false, today = today, live = live,
                     resultsSummary = summary, results = results, research = research,
                     account = account, follows = follows, notifications = notifications,
+                    v3Bookmakers = v3Books, v3Slate = v3Slate, v3Bookmaker = resolvedBookmaker,
                     error = if (today == null && live == null && account == null) "PredIQ could not load the app data." else null,
                 )
             }
@@ -240,6 +255,47 @@ class PrediqContractViewModel(context: Context) : ViewModel() {
     fun saveNotifications(settings: V2NotificationSettings) = viewModelScope.launch {
         safe { api.saveNotifications(settings) }
             .onSuccess { saved -> mutate { it.copy(notifications = saved) } }
+            .onFailure { error -> mutate { it.copy(error = error.message) } }
+    }
+
+    fun loadV3Slate(hours: Int = 120) = viewModelScope.launch {
+        mutate { it.copy(refreshing = true, error = null) }
+        safe { v3Api.slate(hours = hours, bookmaker = state.v3Bookmaker) }
+            .onSuccess { data -> mutate { it.copy(v3Slate = data, refreshing = false) } }
+            .onFailure { error -> mutate { it.copy(refreshing = false, error = error.message) } }
+    }
+
+    fun loadV3Bookmakers() = viewModelScope.launch {
+        safe { v3Api.priceSources() }
+            .onSuccess { books -> mutate { it.copy(v3Bookmakers = books, v3Bookmaker = books.default ?: "prediq_reference") } }
+            .onFailure { error -> mutate { it.copy(error = error.message) } }
+    }
+
+    fun setV3Target(target: Double) { mutate { it.copy(v3TargetOdds = target) } }
+    fun setV3Risk(risk: String) { mutate { it.copy(v3Risk = risk) } }
+    fun setV3Bookmaker(bookmaker: String) {
+        mutate { it.copy(v3Bookmaker = bookmaker) }
+        loadV3Slate()
+    }
+
+    fun buildV3Ticket() = viewModelScope.launch {
+        mutate { it.copy(busy = true, v3Ticket = null, error = null) }
+        safe { v3Api.buildTicket(state.v3TargetOdds, state.v3Risk, state.v3Bookmaker) }
+            .onSuccess { ticket -> mutate { it.copy(v3Ticket = ticket, busy = false) } }
+            .onFailure { error -> mutate { it.copy(busy = false, error = error.message) } }
+    }
+
+    fun loadV3Event(eventId: String) = viewModelScope.launch {
+        mutate { it.copy(busy = true, v3Event = null, error = null) }
+        safe { v3Api.event(eventId, state.v3Bookmaker) }
+            .onSuccess { detail -> mutate { it.copy(v3Event = detail, busy = false) } }
+            .onFailure { error -> mutate { it.copy(busy = false, error = error.message) } }
+    }
+
+    fun saveV3Ticket() = viewModelScope.launch {
+        val ticket = state.v3Ticket ?: return@launch
+        if (ticket.legs.isEmpty()) return@launch
+        safe { v3Api.saveTicket("Target ${state.v3TargetOdds.toInt()}", ticket) }
             .onFailure { error -> mutate { it.copy(error = error.message) } }
     }
 
