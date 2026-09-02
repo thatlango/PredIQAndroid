@@ -294,7 +294,7 @@ fun AssessmentCard(item: AssessmentDto, onOpen: () -> Unit) {
                 Text("Why PredIQ sees it", style = MaterialTheme.typography.labelLarge, color = PrediqMuted)
                 IndicatorList(item.why.take(2))
             }
-            item.watchOuts.firstOrNull()?.let(::RiskNote)
+            item.watchOuts.firstOrNull()?.let { riskText -> RiskNote(riskText) }
             item.changeReason?.let {
                 Surface(color = Color(0xFFEEF3FF), shape = RoundedCornerShape(12.dp)) {
                     Row(Modifier.padding(12.dp), verticalAlignment = Alignment.Top) {
