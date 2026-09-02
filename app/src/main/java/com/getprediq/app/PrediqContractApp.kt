@@ -4,11 +4,13 @@ import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -52,7 +54,9 @@ fun PrediqContractApp(authCallback: Uri? = null, onAuthCallbackConsumed: () -> U
     LaunchedEffect(authState.account?.user?.id) {
         if (authState.account != null) {
             contractVm.bootstrap(force = true)
-            if (nav.currentDestination?.route in setOf("signin", "signup", "forgot")) nav.navigate("main") { popUpTo("signin") { inclusive = true } }
+            if (nav.currentDestination?.route in setOf("signin", "signup", "forgot")) {
+                nav.navigate("main") { popUpTo("signin") { inclusive = true } }
+            }
         } else if (!authState.loadingAccount) {
             contractVm.clearForLogout()
         }
@@ -83,7 +87,11 @@ fun PrediqContractApp(authCallback: Uri? = null, onAuthCallbackConsumed: () -> U
             SignUpContractScreen(
                 state = authState,
                 onBack = { nav.popBackStack() },
-                onCreate = { name, email, password, country, consent -> authVm.register(name, email, password, country, consent, null) { nav.navigate("onboarding") { popUpTo("signin") { inclusive = true } } } },
+                onCreate = { name, email, password, country, consent ->
+                    authVm.register(name, email, password, country, consent, null) {
+                        nav.navigate("onboarding") { popUpTo("signin") { inclusive = true } }
+                    }
+                },
                 onTuku = { authVm.startTuku { url -> context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) } },
             )
         }
@@ -96,7 +104,6 @@ fun PrediqContractApp(authCallback: Uri? = null, onAuthCallbackConsumed: () -> U
         composable("main") {
             MainContractTabs(
                 state = contractState,
-                authState = authState,
                 vm = contractVm,
                 onDecision = { ref -> contractVm.loadPrediction(ref); nav.navigate("prediction/${Uri.encode(ref)}") },
                 onLive = { id -> nav.navigate("live-detail/${Uri.encode(id)}") },
@@ -115,7 +122,11 @@ fun PrediqContractApp(authCallback: Uri? = null, onAuthCallbackConsumed: () -> U
                 onHelp = { nav.navigate("help") },
                 onReferral = { nav.navigate("referral") },
                 onCompare = { nav.navigate("compare") },
-                onLogout = { authVm.logout(); contractVm.clearForLogout(); nav.navigate("signin") { popUpTo("main") { inclusive = true } } },
+                onPerformance = { market -> nav.navigate("performance/${Uri.encode(market)}") },
+                onLogout = {
+                    authVm.logout(); contractVm.clearForLogout()
+                    nav.navigate("signin") { popUpTo("main") { inclusive = true } }
+                },
             )
         }
         composable("prediction/{ref}", arguments = listOf(navArgument("ref") { type = NavType.StringType })) {
@@ -136,10 +147,10 @@ fun PrediqContractApp(authCallback: Uri? = null, onAuthCallbackConsumed: () -> U
         composable("result/{id}", arguments = listOf(navArgument("id") { type = NavType.StringType })) { ResultReviewContractScreen(contractState, onBack = { nav.popBackStack() }) }
         composable("team/{id}", arguments = listOf(navArgument("id") { type = NavType.StringType })) { TeamDetailContractScreen(contractState, onBack = { nav.popBackStack() }) }
         composable("player/{id}", arguments = listOf(navArgument("id") { type = NavType.StringType })) { PlayerDetailContractScreen(contractState, onBack = { nav.popBackStack() }) }
-        composable("league/{id}", arguments = listOf(navArgument("id") { type = NavType.StringType })) { CompetitionDetailContractScreen(contractState, onBack = { nav.popBackStack() }, onOpenDecision = { ref -> contractVm.loadPrediction(ref); nav.navigate("prediction/${Uri.encode(ref)}") }) }
-        composable("search") {
-            SearchContractScreen(contractState, onBack = { nav.popBackStack() }, onQuery = contractVm::search, onOpen = { item -> openSearchResult(item, contractVm, nav) })
+        composable("league/{id}", arguments = listOf(navArgument("id") { type = NavType.StringType })) {
+            CompetitionDetailContractScreen(contractState, onBack = { nav.popBackStack() }, onOpenDecision = { ref -> contractVm.loadPrediction(ref); nav.navigate("prediction/${Uri.encode(ref)}") })
         }
+        composable("search") { SearchContractScreen(contractState, onBack = { nav.popBackStack() }, onQuery = contractVm::search, onOpen = { item -> openSearchResult(item, contractVm, nav) }) }
         composable("following") { FollowingContractScreen(contractState, onBack = { nav.popBackStack() }, onUnfollow = contractVm::unfollow, onUpdate = contractVm::updateFollow) }
         composable("notifications") { NotificationPreferencesContractScreen(contractState, onBack = { nav.popBackStack() }, onSave = contractVm::saveNotifications) }
         composable("inbox") { NotificationInboxContractScreen(contractState, onBack = { nav.popBackStack() }) }
@@ -160,7 +171,6 @@ fun PrediqContractApp(authCallback: Uri? = null, onAuthCallbackConsumed: () -> U
 @Composable
 private fun MainContractTabs(
     state: PrediqContractState,
-    authState: PrediqUiState,
     vm: PrediqContractViewModel,
     onDecision: (String) -> Unit,
     onLive: (String) -> Unit,
@@ -179,6 +189,7 @@ private fun MainContractTabs(
     onHelp: () -> Unit,
     onReferral: () -> Unit,
     onCompare: () -> Unit,
+    onPerformance: (String) -> Unit,
     onLogout: () -> Unit,
 ) {
     var tab by rememberSaveable { mutableStateOf(ContractTab.Today) }
@@ -201,7 +212,10 @@ private fun MainContractTabs(
                         onClick = { tab = item },
                         icon = { Icon(icon, item.label) },
                         label = { Text(item.label) },
-                        colors = NavigationBarItemDefaults.colors(selectedIconColor = PurpleDeep, selectedTextColor = PurpleDeep, indicatorColor = Color(0xFFEDE9FE), unselectedIconColor = Muted, unselectedTextColor = Muted),
+                        colors = NavigationBarItemDefaults.colors(
+                            selectedIconColor = PurpleDeep, selectedTextColor = PurpleDeep,
+                            indicatorColor = Color(0xFFEDE9FE), unselectedIconColor = Muted, unselectedTextColor = Muted,
+                        ),
                     )
                 }
             }
@@ -211,30 +225,31 @@ private fun MainContractTabs(
             when (tab) {
                 ContractTab.Today -> TodayContractScreen(state, vm::loadToday, onDecision, { toggleFollow(vm, state, it) }, { filters = true }, onUpcoming)
                 ContractTab.Live -> LiveContractScreen(state, vm::loadLive, onLive, { filters = true })
-                ContractTab.Results -> ResultsContractScreen(state, vm::setResultPeriod, vm::setResultOutcome, onResult, { market -> navPerformancePlaceholder(market) })
+                ContractTab.Results -> ResultsContractScreen(state, vm::setResultPeriod, vm::setResultOutcome, onResult, onPerformance)
                 ContractTab.Research -> ResearchContractScreen(state, onSearch, onTeam, onPlayer, onLeague)
                 ContractTab.Account -> AccountContractScreen(state, onProfile, onFollowing, onNotifications, onPlan, onPayments, onHelp, onLogout)
             }
             if (tab == ContractTab.Today || tab == ContractTab.Live) {
-                FilledTonalIconButton(onClick = onInbox, modifier = Modifier.align(Alignment.TopEnd).padding(top = 15.dp, end = 66.dp), colors = IconButtonDefaults.filledTonalIconButtonColors(containerColor = Color.White)) {
-                    Icon(Icons.Outlined.Notifications, "Notifications", tint = Ink)
-                }
+                FilledTonalIconButton(
+                    onClick = onInbox,
+                    modifier = Modifier.align(Alignment.TopEnd).padding(top = 15.dp, end = 66.dp),
+                    colors = IconButtonDefaults.filledTonalIconButtonColors(containerColor = Color.White),
+                ) { Icon(Icons.Outlined.Notifications, "Notifications", tint = Ink) }
             }
             if (tab == ContractTab.Research) {
-                ExtendedFloatingActionButton(onClick = onCompare, modifier = Modifier.align(Alignment.BottomEnd).padding(18.dp), containerColor = Purple, contentColor = Color.White) { Icon(Icons.Outlined.CompareArrows, null); Spacer(Modifier.width(7.dp)); Text("Compare") }
+                ExtendedFloatingActionButton(onClick = onCompare, modifier = Modifier.align(Alignment.BottomEnd).padding(18.dp), containerColor = Purple, contentColor = Color.White) {
+                    Icon(Icons.Outlined.CompareArrows, null); Spacer(Modifier.width(7.dp)); Text("Compare")
+                }
             }
             if (tab == ContractTab.Account) {
-                SmallFloatingActionButton(onClick = onReferral, modifier = Modifier.align(Alignment.BottomEnd).padding(18.dp), containerColor = Color(0xFFE9F7D2), contentColor = GreenDeep) { Icon(Icons.Outlined.GroupAdd, "Refer & earn") }
+                SmallFloatingActionButton(onClick = onReferral, modifier = Modifier.align(Alignment.BottomEnd).padding(18.dp), containerColor = Color(0xFFE9F7D2), contentColor = GreenDeep) {
+                    Icon(Icons.Outlined.GroupAdd, "Refer & earn")
+                }
             }
         }
     }
     if (filters) FiltersContractSheet(state, onClose = { filters = false }, onSport = vm::setSport, onCompetition = vm::setCompetition, onFollowing = vm::setFollowingOnly)
 }
-
-// Navigation to performance is wired in the NavHost. This no-op is replaced by a clickable
-// route from the result section in the next callback scope; keeping it isolated prevents the
-// results screen from owning a NavController.
-private fun navPerformancePlaceholder(market: String) = Unit
 
 private fun toggleFollow(vm: PrediqContractViewModel, state: PrediqContractState, card: V2DecisionCard) {
     val type = if (!card.predictionId.isNullOrBlank()) "prediction" else "event"
@@ -247,9 +262,7 @@ private fun toggleFollow(vm: PrediqContractViewModel, state: PrediqContractState
 }
 
 private fun findLiveCard(state: PrediqContractState, id: String): V2LiveCard? = sequenceOf(
-    state.live?.following.orEmpty(),
-    state.live?.opportunities.orEmpty(),
-    state.live?.games.orEmpty(),
+    state.live?.following.orEmpty(), state.live?.opportunities.orEmpty(), state.live?.games.orEmpty(),
 ).flatten().firstOrNull { it.id == id || it.event.id == id || it.predictionId == id }
 
 private fun openSearchResult(item: V2SearchResult, vm: PrediqContractViewModel, nav: androidx.navigation.NavHostController) {
@@ -271,7 +284,11 @@ private fun SignInContractScreen(
     var email by rememberSaveable { mutableStateOf("") }
     var password by rememberSaveable { mutableStateOf("") }
     LazyColumn(Modifier.fillMaxSize().background(Ivory), contentPadding = PaddingValues(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        item { Spacer(Modifier.height(28.dp)); Text("PredIQ", color = PurpleDeep, style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.ExtraBold); Text("Sports intelligence for smarter decisions.", color = Muted) }
+        item {
+            Spacer(Modifier.height(28.dp))
+            Text("PredIQ", color = PurpleDeep, style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.ExtraBold)
+            Text("Sports intelligence for smarter decisions.", color = Muted)
+        }
         item {
             BrightCard {
                 Text("Why PredIQ?", color = Lime, fontWeight = FontWeight.Bold)
@@ -316,7 +333,10 @@ private fun SignUpContractScreen(
         item { OutlinedTextField(password, { password = it }, label = { Text("Password") }, visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth(), singleLine = true) }
         item { OutlinedTextField(country, { country = it.uppercase().take(2) }, label = { Text("Country code") }, modifier = Modifier.fillMaxWidth(), singleLine = true) }
         item { Row(verticalAlignment = Alignment.Top) { Checkbox(consent, onCheckedChange = { consent = it }); Text("I agree to the Terms, Privacy Policy and responsible-use notice.", color = Muted, modifier = Modifier.padding(top = 12.dp)) } }
-        item { state.authError?.let { Text(it, color = Red) }; Button(onClick = { onCreate(name, email, password, country, consent) }, enabled = !state.authBusy && name.isNotBlank() && email.isNotBlank() && password.length >= 8 && country.length == 2 && consent, modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)) { Text("Create account") } }
+        item {
+            state.authError?.let { Text(it, color = Red) }
+            Button(onClick = { onCreate(name, email, password, country, consent) }, enabled = !state.authBusy && name.isNotBlank() && email.isNotBlank() && password.length >= 8 && country.length == 2 && consent, modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)) { Text("Create account") }
+        }
         item { OutlinedButton(onClick = onTuku, modifier = Modifier.fillMaxWidth()) { Text("Continue with Tuku") } }
     }
 }
