@@ -1,0 +1,66 @@
+-                Column(Modifier.weight(1f)) { Text("PLAYER", color = PrediqBlue, style = MaterialTheme.typography.labelSmall); Text(player.name, style = MaterialTheme.typography.headlineSmall); Text(listOfNotNull(player.position, player.primaryTeam, player.nationality, player.age?.let { "Age $it" }).joinToString(" · "), color = PrediqMuted) }
++                Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) { PlayerHeadshot(player.name, player.sportCode, 58.dp); Spacer(Modifier.width(12.dp)); Column { Text("PLAYER", color = PrediqBlue, style = MaterialTheme.typography.labelSmall); Text(player.name, style = MaterialTheme.typography.headlineSmall); Text(listOfNotNull(player.position, player.primaryTeam, player.nationality, player.age?.let { "Age $it" }).joinToString(" · "), color = PrediqMuted) } }
+                 Surface(color = PrediqBlue, shape = RoundedCornerShape(16.dp)) { Column(Modifier.padding(horizontal = 14.dp, vertical = 10.dp), horizontalAlignment = Alignment.End) { Text("PERFORMANCE", color = Color.White.copy(alpha=.8f), style = MaterialTheme.typography.labelSmall); Text("${player.performanceIndex}", color = Color.White, style = MaterialTheme.typography.headlineMedium); Text("Coverage ${player.coverageScore}%", color = Color.White.copy(alpha=.8f), style = MaterialTheme.typography.labelSmall) } }
+             }
+             if (player.signals.isNotEmpty()) { player.signals.take(5).forEach { Text("• $it", style = MaterialTheme.typography.bodyMedium) } }
+--- a/app/src/main/java/com/getprediq/app/PrediqAppV2.kt
++++ b/app/src/main/java/com/getprediq/app/PrediqAppV2.kt
+@@ -97,13 +97,11 @@
+     var filtersOpen by rememberSaveable { mutableStateOf(false) }
+     fun requestAccess() { if (state.account == null) authOpen = true else tab = MainTabV2.Account }
+ 
+-    LaunchedEffect(vm.fullAccess) { if (!vm.fullAccess) tab = MainTabV2.Account }
+-
+     Scaffold(
+         containerColor = MaterialTheme.colorScheme.background,
+         bottomBar = {
+             NavigationBar(containerColor = MaterialTheme.colorScheme.surface, tonalElevation = 2.dp) {
+-                (if (vm.fullAccess) MainTabV2.entries else listOf(MainTabV2.Account)).forEach { item ->
++                MainTabV2.entries.forEach { item ->
+                     val icon = when (item) {
+                         MainTabV2.Today -> Icons.Outlined.Today
+                         MainTabV2.Live -> Icons.Outlined.Sensors
+@@ -111,7 +109,20 @@
+                         MainTabV2.Explore -> Icons.Outlined.Explore
+                         MainTabV2.Account -> Icons.Outlined.Person
+                     }
+-                    NavigationBarItem(selected = tab == item, onClick = { tab = item }, icon = { Icon(icon, null) }, label = { Text(item.label) })
++                    NavigationBarItem(
++                        selected = tab == item,
++                        onClick = { tab = item },
++                        icon = { Icon(icon, contentDescription = item.label) },
++                        label = { Text(item.label) },
++                        alwaysShowLabel = true,
++                        colors = NavigationBarItemDefaults.colors(
++                            selectedIconColor = PrediqLiveInk,
++                            selectedTextColor = PrediqLiveInk,
++                            indicatorColor = PrediqLiveLime,
++                            unselectedIconColor = PrediqMuted,
++                            unselectedTextColor = PrediqMuted,
++                        ),
++                    )
+                 }
+             }
+         },
+@@ -172,8 +183,8 @@
+     ) {
+         item {
+             Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+-                Text("Your PredIQ", style = MaterialTheme.typography.headlineMedium)
+-                Text("Subscription, payments, profile and intelligence alerts in one place.", color = PrediqMuted)
++                Text("Account & access", style = MaterialTheme.typography.headlineMedium)
++                Text("Your Tuku identity, PredIQ access, payments and intelligence alerts.", color = PrediqMuted)
+             }
+         }
+         val account = state.account
+@@ -181,8 +192,8 @@
+             item {
+                 V2Card {
+                     Icon(Icons.Outlined.LockOpen, null, tint = PrediqBlue, modifier = Modifier.size(48.dp))
+-                    Text("Seven days of full access", style = MaterialTheme.typography.titleLarge)
+-                    Text("Create one Tuku account and open every sport, live view, result and intelligence screen.", color = PrediqMuted)
++                    Text("Seven days of full PredIQ", style = MaterialTheme.typography.titleLarge)
++                    Text("Preview Today, Live, Results and Explore first. Sign in when you want the full evidence, risks and match intelligence layer.", color = PrediqMuted)
+                     Button(onClick = onAuth, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) { Text("Start 7-day trial") }
+                     Text("Plans start at UGX 15,000. Paid time begins after any remaining trial access.", color = PrediqMuted, style = MaterialTheme.typography.bodySmall)
+                 }
