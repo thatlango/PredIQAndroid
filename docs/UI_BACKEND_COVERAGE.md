@@ -21,18 +21,20 @@ This file records the Android implementation decisions made while reconciling th
 | Results + accuracy dashboard | Implemented | Results |
 | Match intelligence detail | Implemented | Match detail |
 | League winner forecasts | Implemented | League winner screen |
-| League intelligence profiles | **Added in parity pass** | Explore > Teams |
-| Team intelligence list/detail | **Added in parity pass** | Explore > Teams |
-| Team comparison | **Added in parity pass using real team profiles** | Explore > Teams |
+| League intelligence profiles | Implemented | Explore > Teams |
+| Team intelligence list/detail | Implemented | Explore > Teams |
+| Team comparison | Implemented using real team profiles | Explore > Teams |
 | Player intelligence | Implemented | Explore > Players |
 | Squad depth intelligence | Implemented | Explore > Squad |
 | Notification preferences | Implemented | Account > Notification sheet |
+| League-specific alert following | **Implemented** using `/me/league-alerts` | Account > Notification sheet |
 | Affiliate/referral dashboard | Implemented | Account |
 | Payment capability + checkout | Implemented | Account / Payment sheet |
-| Profile update | Backend available; defer until account-edit interaction is designed | Account |
-| Delivery contact update | Backend available; notification settings already cover channel preferences; contact editing deferred | Account |
-| Payment history | Backend available; candidate for Account transaction-history sheet | Account |
-| Device token registration | Backend available; requires push-provider/device-token integration before wiring | Background |
+| Profile update | **Implemented** using `/me/profile` | Account > Profile sheet |
+| Payment history | **Implemented** using `/payments/history` | Account > Payment history sheet |
+| Device token registration/deactivation | **Implemented** using Firebase Messaging token lifecycle and `/devices/register` + `/devices/deactivate` | Background + Account notifications |
+| Android notification runtime permission | **Implemented** for Android 13+ | Account > Notification sheet |
+| Delivery contact update | Existing account phone/email remain authoritative; channel preferences are exposed in notifications | Account |
 | Internal source/model performance telemetry | Intentionally excluded | Admin/analyst only |
 
 ## Drive reference coverage
@@ -64,17 +66,20 @@ The authoritative PredIQ Drive set contains mobile and desktop references includ
 | Results accuracy | Adapt into Results summary metrics + graded prediction history |
 | Match deep dive | Native match intelligence detail with rationale, watch-outs, freshness and share behavior |
 | League winner/title race | Existing League Winner screen remains primary; league profile data is also exposed in Explore for deeper competition context |
-| League prediction alerts | Notification architecture exists; league-specific alert subscription requires a backend preference contract and is not faked |
+| League prediction alerts | Implemented as persistent per-user competition following in the notification sheet using the backend league-alert contract |
 | Player intelligence | Implemented as searchable player list + performance/coverage/source detail |
 | Squad depth | Implemented as observed squad coverage, position groups and player evidence |
-| Team statistics | Added native team list/detail from `/intelligence/teams` and `/intelligence/team` |
-| Compare teams | Added native two-team comparison using real team intelligence profiles |
-| Notification settings | Existing Material 3 bottom sheet maps push/WhatsApp/email and alert categories |
+| Team statistics | Native team list/detail from `/intelligence/teams` and `/intelligence/team` |
+| Compare teams | Native two-team comparison using real team intelligence profiles |
+| Notification settings | Material 3 sheet maps push/WhatsApp/email, alert categories, Android runtime permission and followed competitions |
 | Desktop navigation/sidebar patterns | Not copied literally; mapped to Android bottom navigation, sheets and progressive disclosure |
 
-## Follow-on gaps requiring backend/product work
+## Deployment note: push notifications
 
-1. League-specific alert following needs a backend user-preference contract; current notification preferences are category-level only.
+The Android application now contains the real Firebase Messaging token lifecycle and backend registration/deactivation contract. Token acquisition is deliberately guarded by the presence of a valid Firebase app configuration. Without deployment Firebase configuration, PredIQ does not invent or register a fake token. A production Firebase project/provider configuration and server-side push sender are deployment prerequisites for actual FCM delivery; the Android registration lifecycle itself is complete.
+
+## Remaining intentional boundaries
+
+1. Internal `/sources` and `/performance` model/source telemetry remains admin/analyst-only and is not exposed to consumer Android users.
 2. Rich team comparison can expand when the backend publishes a stable typed comparison schema instead of generic profile JSON.
-3. Device push registration can be completed when the Android push provider/token lifecycle is configured.
-4. Payment history and account profile editing are backend-supported and can be exposed as Account sheets without changing authentication.
+3. Bookmaker automation remains limited to official/authorised integrations; Android does not simulate unsupported bookmaker actions.
