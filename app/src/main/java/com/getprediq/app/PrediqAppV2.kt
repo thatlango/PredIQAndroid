@@ -394,6 +394,7 @@ private fun NotificationSheetV2(state: PrediqUiState, vm: PrediqViewModel, onClo
     val context = LocalContext.current
     val repo = remember { AccountFeatureRepository(context.applicationContext) }
     val scope = rememberCoroutineScope()
+    val pushConfigured = remember { context.resources.getIdentifier("google_app_id", "string", context.packageName) != 0 }
     var local by remember(state.notifications) { mutableStateOf(state.notifications ?: NotificationSettings()) }
     var availableLeagues by remember { mutableStateOf<List<String>>(emptyList()) }
     var selectedLeagues by remember { mutableStateOf<Set<String>>(emptySet()) }
@@ -404,6 +405,7 @@ private fun NotificationSheetV2(state: PrediqUiState, vm: PrediqViewModel, onClo
         if (!granted) local = local.copy(pushEnabled = false)
     }
     LaunchedEffect(Unit) {
+        if (!pushConfigured) local = local.copy(pushEnabled = false)
         vm.loadNotifications()
         runCatching { repo.leagueAlerts() }
             .onSuccess { availableLeagues = it.available; selectedLeagues = it.leagues.toSet(); loadingLeagues = false }
@@ -413,10 +415,15 @@ private fun NotificationSheetV2(state: PrediqUiState, vm: PrediqViewModel, onClo
         Column(Modifier.fillMaxWidth().padding(20.dp).navigationBarsPadding().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text("Notification Settings", style = MaterialTheme.typography.headlineMedium)
             Text("Choose the intelligence changes worth interrupting you for, including specific football competitions.", color = PrediqMuted)
-            SettingSwitchV2("Push notifications", local.pushEnabled) { enabled ->
-                local = local.copy(pushEnabled = enabled)
-                if (enabled && Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            SettingSwitchV2("Push notifications", local.pushEnabled && pushConfigured) { enabled ->
+                if (pushConfigured) {
+                    local = local.copy(pushEnabled = enabled)
+                    if (enabled && Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                } else {
+                    local = local.copy(pushEnabled = false)
+                }
             }
+            if (!pushConfigured) Text("Push alerts are unavailable in this build until PredIQ is linked to a Firebase app. Email and WhatsApp preferences still work.", color = PrediqMuted, style = MaterialTheme.typography.bodySmall)
             SettingSwitchV2("WhatsApp", local.whatsappEnabled) { local = local.copy(whatsappEnabled = it) }
             SettingSwitchV2("Email", local.emailEnabled) { local = local.copy(emailEnabled = it) }
             HorizontalDivider()
@@ -450,8 +457,9 @@ private fun NotificationSheetV2(state: PrediqUiState, vm: PrediqViewModel, onClo
                         busy = true; error = null
                         runCatching {
                             repo.updateLeagueAlerts(selectedLeagues.sorted())
-                            vm.saveNotifications(local)
-                            if (local.pushEnabled) PushRegistrationCoordinator.sync(context.applicationContext)
+                            val safeNotifications = if (pushConfigured) local else local.copy(pushEnabled = false)
+                            vm.saveNotifications(safeNotifications)
+                            if (safeNotifications.pushEnabled) PushRegistrationCoordinator.sync(context.applicationContext)
                         }.onSuccess { busy = false; onClose() }
                             .onFailure { busy = false; error = it.message ?: "Notification preferences could not be saved" }
                     }
