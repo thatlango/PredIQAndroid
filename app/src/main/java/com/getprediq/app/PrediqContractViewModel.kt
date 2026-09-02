@@ -66,26 +66,28 @@ class PrediqContractViewModel(context: Context) : ViewModel() {
         loadedForSession = true
         viewModelScope.launch {
             mutate { it.copy(busy = true, error = null) }
-            val today = async { safe { api.today() }.getOrNull() }
-            val live = async { safe { api.live() }.getOrNull() }
-            val summary = async { safe { api.resultsSummary(state.resultPeriodDays) }.getOrNull() }
-            val results = async { safe { api.results(state.resultPeriodDays) }.getOrNull() }
-            val research = async { safe { api.research() }.getOrNull() }
-            val account = async { safe { api.me() }.getOrNull() }
-            val follows = async { safe { api.follows() }.getOrNull() }
-            val notifications = async { safe { api.notifications() }.getOrNull() }
+            val todayJob = async { safe { api.today() }.getOrNull() }
+            val liveJob = async { safe { api.live() }.getOrNull() }
+            val summaryJob = async { safe { api.resultsSummary(state.resultPeriodDays) }.getOrNull() }
+            val resultsJob = async { safe { api.results(state.resultPeriodDays) }.getOrNull() }
+            val researchJob = async { safe { api.research() }.getOrNull() }
+            val accountJob = async { safe { api.me() }.getOrNull() }
+            val followsJob = async { safe { api.follows() }.getOrNull() }
+            val notificationsJob = async { safe { api.notifications() }.getOrNull() }
+            val today = todayJob.await()
+            val live = liveJob.await()
+            val summary = summaryJob.await()
+            val results = resultsJob.await()
+            val research = researchJob.await()
+            val account = accountJob.await()
+            val follows = followsJob.await()
+            val notifications = notificationsJob.await()
             mutate {
                 it.copy(
-                    ready = true,
-                    busy = false,
-                    today = today.await(),
-                    live = live.await(),
-                    resultsSummary = summary.await(),
-                    results = results.await(),
-                    research = research.await(),
-                    account = account.await(),
-                    follows = follows.await(),
-                    notifications = notifications.await(),
+                    ready = true, busy = false, today = today, live = live,
+                    resultsSummary = summary, results = results, research = research,
+                    account = account, follows = follows, notifications = notifications,
+                    error = if (today == null && live == null && account == null) "PredIQ could not load the app data." else null,
                 )
             }
         }
@@ -99,10 +101,13 @@ class PrediqContractViewModel(context: Context) : ViewModel() {
     fun refreshCurrent() = viewModelScope.launch {
         mutate { it.copy(refreshing = true, error = null) }
         val s = state
-        val today = async { safe { api.today(s.selectedSport.takeIf(String::isNotBlank), s.selectedCompetition.takeIf(String::isNotBlank), s.followingOnly, s.today?.changesCursor) }.getOrNull() }
-        val live = async { safe { api.live(s.selectedSport.takeIf(String::isNotBlank), s.selectedCompetition.takeIf(String::isNotBlank), s.followingOnly) }.getOrNull() }
-        val account = async { safe { api.me() }.getOrNull() }
-        mutate { it.copy(refreshing = false, today = today.await() ?: it.today, live = live.await() ?: it.live, account = account.await() ?: it.account) }
+        val todayJob = async { safe { api.today(s.selectedSport.takeIf(String::isNotBlank), s.selectedCompetition.takeIf(String::isNotBlank), s.followingOnly, s.today?.changesCursor) }.getOrNull() }
+        val liveJob = async { safe { api.live(s.selectedSport.takeIf(String::isNotBlank), s.selectedCompetition.takeIf(String::isNotBlank), s.followingOnly) }.getOrNull() }
+        val accountJob = async { safe { api.me() }.getOrNull() }
+        val today = todayJob.await()
+        val live = liveJob.await()
+        val account = accountJob.await()
+        mutate { it.copy(refreshing = false, today = today ?: it.today, live = live ?: it.live, account = account ?: it.account) }
     }
 
     fun loadToday() = viewModelScope.launch {
@@ -124,8 +129,8 @@ class PrediqContractViewModel(context: Context) : ViewModel() {
     fun loadResults() = viewModelScope.launch {
         val s = state
         mutate { it.copy(refreshing = true, error = null) }
-        val summary = async { safe { api.resultsSummary(s.resultPeriodDays) }.getOrNull() }
-        val feed = safe {
+        val summaryJob = async { safe { api.resultsSummary(s.resultPeriodDays) }.getOrNull() }
+        val feedResult = safe {
             api.results(
                 periodDays = s.resultPeriodDays,
                 sport = s.selectedSport.takeIf(String::isNotBlank),
@@ -134,8 +139,9 @@ class PrediqContractViewModel(context: Context) : ViewModel() {
                 outcome = s.resultOutcome.takeIf(String::isNotBlank),
             )
         }
-        feed.onSuccess { data -> mutate { it.copy(results = data, resultsSummary = summary.await() ?: it.resultsSummary, refreshing = false) } }
-            .onFailure { error -> mutate { it.copy(resultsSummary = summary.await() ?: it.resultsSummary, refreshing = false, error = error.message) } }
+        val summary = summaryJob.await()
+        feedResult.onSuccess { data -> mutate { it.copy(results = data, resultsSummary = summary ?: it.resultsSummary, refreshing = false) } }
+            .onFailure { error -> mutate { it.copy(resultsSummary = summary ?: it.resultsSummary, refreshing = false, error = error.message) } }
     }
 
     fun loadResearch() = viewModelScope.launch {
@@ -146,10 +152,13 @@ class PrediqContractViewModel(context: Context) : ViewModel() {
     }
 
     fun loadAccount() = viewModelScope.launch {
-        val account = async { safe { api.me() }.getOrNull() }
-        val follows = async { safe { api.follows() }.getOrNull() }
-        val notifications = async { safe { api.notifications() }.getOrNull() }
-        mutate { it.copy(account = account.await() ?: it.account, follows = follows.await() ?: it.follows, notifications = notifications.await() ?: it.notifications) }
+        val accountJob = async { safe { api.me() }.getOrNull() }
+        val followsJob = async { safe { api.follows() }.getOrNull() }
+        val notificationsJob = async { safe { api.notifications() }.getOrNull() }
+        val account = accountJob.await()
+        val follows = followsJob.await()
+        val notifications = notificationsJob.await()
+        mutate { it.copy(account = account ?: it.account, follows = follows ?: it.follows, notifications = notifications ?: it.notifications) }
     }
 
     fun setSport(value: String) {
@@ -188,6 +197,10 @@ class PrediqContractViewModel(context: Context) : ViewModel() {
             .onFailure { error -> mutate { it.copy(busy = false, error = error.message) } }
     }
 
+    fun reloadPrediction() {
+        state.prediction?.decision?.let { card -> (card.predictionId ?: card.publishedForecastId ?: card.id).takeIf { it.isNotBlank() }?.let(::loadPrediction) }
+    }
+
     fun loadResultReview(id: String) = viewModelScope.launch {
         mutate { it.copy(resultReview = null, busy = true, error = null) }
         safe { api.resultReview(id) }
@@ -212,7 +225,7 @@ class PrediqContractViewModel(context: Context) : ViewModel() {
 
     fun follow(entityType: String, entityKey: String, label: String?, onDone: (() -> Unit)? = null) = viewModelScope.launch {
         safe { api.follow(entityType, entityKey, label) }
-            .onSuccess { loadAccount(); loadToday(); onDone?.invoke() }
+            .onSuccess { loadAccount(); loadToday(); loadLive(); reloadPrediction(); onDone?.invoke() }
             .onFailure { error -> mutate { it.copy(error = error.message) } }
     }
 
@@ -221,7 +234,7 @@ class PrediqContractViewModel(context: Context) : ViewModel() {
     }
 
     fun unfollow(id: String) = viewModelScope.launch {
-        safe { api.unfollow(id) }.onSuccess { loadAccount(); loadToday(); loadLive() }.onFailure { error -> mutate { it.copy(error = error.message) } }
+        safe { api.unfollow(id) }.onSuccess { loadAccount(); loadToday(); loadLive(); reloadPrediction() }.onFailure { error -> mutate { it.copy(error = error.message) } }
     }
 
     fun saveNotifications(settings: V2NotificationSettings) = viewModelScope.launch {
