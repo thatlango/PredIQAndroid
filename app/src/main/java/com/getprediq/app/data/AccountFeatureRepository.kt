@@ -9,6 +9,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.put
@@ -105,7 +106,7 @@ class AccountFeatureRepository(context: Context) {
 
     suspend fun updateLeagueAlerts(leagues: List<String>): LeagueAlertsResponse {
         val body = buildJsonObject {
-            putJsonArray("leagues") { leagues.distinct().take(50).forEach { add(it) } }
+            putJsonArray("leagues") { leagues.distinct().take(50).forEach { add(JsonPrimitive(it)) } }
         }.toString()
         return json.decodeFromString(raw("me/league-alerts", "PUT", body))
     }
