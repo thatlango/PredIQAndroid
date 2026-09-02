@@ -1,0 +1,50 @@
+name: Apply sprint 4 compile fix v3
+on:
+  push:
+    branches:
+      - uiux-sprint-4-intelligence-first
+permissions:
+  contents: write
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: uiux-sprint-4-intelligence-first
+          fetch-depth: 0
+      - name: Apply deterministic source edits
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('app/src/main/java/com/getprediq/app/PrediqAppV2.kt')
+          s = p.read_text()
+          needle = 'import com.getprediq.app.ui.theme.PrediqBlue\nimport com.getprediq.app.ui.theme.PrediqMuted'
+          repl = 'import com.getprediq.app.ui.theme.PrediqBlue\nimport com.getprediq.app.ui.theme.PrediqLiveInk\nimport com.getprediq.app.ui.theme.PrediqLiveLime\nimport com.getprediq.app.ui.theme.PrediqMuted'
+          if 'import com.getprediq.app.ui.theme.PrediqLiveInk' not in s:
+              if needle not in s: raise SystemExit('PrediqAppV2 import anchor missing')
+              s = s.replace(needle, repl, 1)
+              p.write_text(s)
+
+          p = Path('app/src/main/java/com/getprediq/app/ui/Components.kt')
+          s = p.read_text()
+          old = 'item.watchOuts.firstOrNull()?.let(::RiskNote)'
+          new = 'item.watchOuts.firstOrNull()?.let { riskText -> RiskNote(riskText) }'
+          if old in s:
+              s = s.replace(old, new, 1)
+              p.write_text(s)
+          elif new not in s:
+              raise SystemExit('Components risk anchor missing')
+          PY
+          git diff --check
+      - name: Commit cleaned fix
+        shell: bash
+        run: |
+          rm -rf .sprint4-fix
+          rm -f .github/workflows/apply-sprint4-compile-fix.yml .github/workflows/apply-sprint4-compile-fix-v2.yml .github/workflows/apply-sprint4-compile-fix-v3.yml
+          git config user.name "thatlago"
+          git config user.email "88454247+thatlango@users.noreply.github.com"
+          git add -A
+          git commit -m "fix(ui): resolve sprint 4 compile issues"
+          git push origin HEAD:uiux-sprint-4-intelligence-first
