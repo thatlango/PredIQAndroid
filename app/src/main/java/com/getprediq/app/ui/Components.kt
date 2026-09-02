@@ -1,5 +1,6 @@
 package com.getprediq.app.ui
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -78,9 +79,10 @@ fun PrediqSectionTitle(title: String, action: String? = null, onAction: (() -> U
 fun PrediqCard(modifier: Modifier = Modifier, onClick: (() -> Unit)? = null, content: @Composable ColumnScope.() -> Unit) {
     Card(
         modifier = modifier.then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
-        shape = RoundedCornerShape(24.dp),
+        shape = RoundedCornerShape(22.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+        border = BorderStroke(1.dp, Color(0xFFE5E9E5)),
     ) { Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp), content = content) }
 }
 
@@ -99,7 +101,7 @@ fun ConfidenceBar(value: Double?, label: String = "Confidence") {
             Text(label, style = MaterialTheme.typography.bodyMedium, color = PrediqMuted)
             Text(probability(value), style = MaterialTheme.typography.labelLarge, color = PrediqBlue)
         }
-        Box(Modifier.fillMaxWidth().height(7.dp).clip(CircleShape).background(Color(0xFFE2E2E5))) {
+        Box(Modifier.fillMaxWidth().height(7.dp).clip(CircleShape).background(Color(0xFFE2E6E2))) {
             Box(Modifier.fillMaxWidth(progress).fillMaxHeight().clip(CircleShape).background(PrediqBlue))
         }
     }
@@ -116,6 +118,18 @@ fun SportChips(sports: List<String>, selected: String, onSelect: (String) -> Uni
                 label = { Text(if (sport.isBlank()) "All Sports" else prettySport(sport)) },
                 modifier = Modifier.heightIn(min = 44.dp),
                 shape = CircleShape,
+                colors = FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = PrediqLiveLime,
+                    selectedLabelColor = PrediqLiveInk,
+                    containerColor = Color.White,
+                    labelColor = PrediqMuted,
+                ),
+                border = FilterChipDefaults.filterChipBorder(
+                    enabled = true,
+                    selected = selected == sport,
+                    borderColor = PrediqOutline,
+                    selectedBorderColor = PrediqLiveLime,
+                ),
             )
         }
     }
@@ -124,8 +138,8 @@ fun SportChips(sports: List<String>, selected: String, onSelect: (String) -> Uni
 @Composable
 fun StateCard(title: String, message: String, error: Boolean = false, cached: Boolean = false, action: String? = null, onAction: (() -> Unit)? = null) {
     val container = when { error -> Color(0xFFFFEDEC); cached -> Color(0xFFFFF6DF); else -> PrediqSurface }
-    Card(shape = RoundedCornerShape(24.dp), colors = CardDefaults.cardColors(containerColor = container), modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    Card(shape = RoundedCornerShape(22.dp), colors = CardDefaults.cardColors(containerColor = container), modifier = Modifier.fillMaxWidth(), border = BorderStroke(1.dp, if (error) Color(0xFFF4C6C2) else Color(0xFFE5E9E5))) {
+        Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
             Text(title, fontWeight = FontWeight.SemiBold)
             Text(message, color = PrediqMuted, style = MaterialTheme.typography.bodyMedium)
             if (action != null && onAction != null) TextButton(onClick = onAction) { Text(action) }
@@ -176,28 +190,147 @@ fun AssessmentCard(item: AssessmentDto, onOpen: () -> Unit) {
 }
 
 @Composable
-fun LiveMatchCard(game: LiveGameDto, onOpen: () -> Unit) {
-    PrediqCard(Modifier.fillMaxWidth(), onOpen) {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            Row(verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Outlined.Sensors, null, tint = PrediqRed, modifier = Modifier.size(18.dp)); Spacer(Modifier.width(5.dp)); Text(game.statusText ?: "LIVE", color = PrediqRed, fontWeight = FontWeight.SemiBold) }
-            if (game.changeReason != null) StatusPill("PREDIQ UPDATED", PrediqGreen, Color(0xFFE9F8EF))
-        }
-        Text(game.competition ?: prettySport(game.sportCode), style = MaterialTheme.typography.labelLarge, color = PrediqMuted)
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-            Text(game.homeParticipant, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-            Text("${game.homeScore ?: "–"}  -  ${game.awayScore ?: "–"}", style = MaterialTheme.typography.titleLarge)
-            Text(game.awayParticipant, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f), textAlign = androidx.compose.ui.text.style.TextAlign.End)
-        }
-        if (game.predictionAvailable) {
-            Surface(color = PrediqBackground, shape = RoundedCornerShape(16.dp)) {
-                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) { Text("Live Prediction", color = PrediqMuted); Text("${probability(game.confidence)} Confidence", color = PrediqBlue, fontWeight = FontWeight.SemiBold) }
-                    Text(game.selectionLabel ?: "PredIQ assessment", style = MaterialTheme.typography.titleLarge)
-                    game.why.firstOrNull()?.let { Text(it, color = PrediqMuted) }
+fun LiveOverviewHero(live: LiveResponse?, loading: Boolean, onRefresh: () -> Unit) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(30.dp),
+        colors = CardDefaults.cardColors(containerColor = PrediqLiveInk),
+        border = BorderStroke(1.dp, PrediqLiveOutline),
+    ) {
+        Column(Modifier.padding(22.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(Modifier.size(9.dp).background(PrediqLiveLime, CircleShape))
+                        Spacer(Modifier.width(8.dp))
+                        Text("LIVE INTELLIGENCE", color = PrediqLiveLime, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
+                    }
+                    Text("What matters now", color = Color.White, style = MaterialTheme.typography.headlineMedium)
+                }
+                Surface(onClick = onRefresh, shape = CircleShape, color = PrediqLiveCardAlt) {
+                    Box(Modifier.size(48.dp), contentAlignment = Alignment.Center) {
+                        Icon(Icons.Outlined.Refresh, "Refresh live intelligence", tint = Color.White)
+                    }
                 }
             }
-        } else Text("PredIQ is tracking this match but does not yet have enough reliable evidence for a live call.", color = PrediqMuted)
-        Text("Last analysed ${relativeTime(game.lastAnalysedAt ?: game.updatedAt)}", color = PrediqMuted, fontSize = 12.sp)
+            Text(
+                if (loading && live == null) "Scanning live fixtures and refreshing PredIQ signals…" else live?.message ?: "Scanning current fixtures for evidence-backed opportunities.",
+                color = PrediqLiveMuted,
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                LiveMetric("LIVE", (live?.liveCount ?: 0).toString(), Modifier.weight(1f))
+                LiveMetric("WITH SIGNAL", (live?.predictedCount ?: 0).toString(), Modifier.weight(1f))
+                LiveMetric("TOP", (live?.strongCount ?: 0).toString(), Modifier.weight(1f), highlight = true)
+            }
+        }
+    }
+}
+
+@Composable
+private fun LiveMetric(label: String, value: String, modifier: Modifier, highlight: Boolean = false) {
+    Surface(
+        modifier = modifier,
+        color = if (highlight) PrediqLiveLime else PrediqLiveCard,
+        shape = RoundedCornerShape(18.dp),
+        border = if (highlight) null else BorderStroke(1.dp, PrediqLiveOutline),
+    ) {
+        Column(Modifier.padding(horizontal = 12.dp, vertical = 13.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            Text(label, color = if (highlight) PrediqLiveInk else PrediqLiveMuted, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+            Text(value, color = if (highlight) PrediqLiveInk else Color.White, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+        }
+    }
+}
+
+@Composable
+private fun LiveTeamBadge(name: String) {
+    Surface(shape = CircleShape, color = PrediqLiveCardAlt, border = BorderStroke(1.dp, PrediqLiveOutline)) {
+        Box(Modifier.size(52.dp), contentAlignment = Alignment.Center) {
+            Text(teamInitials(name), color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+        }
+    }
+}
+
+@Composable
+fun LiveMatchCard(game: LiveGameDto, onOpen: () -> Unit) {
+    Card(
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onOpen),
+        shape = RoundedCornerShape(28.dp),
+        colors = CardDefaults.cardColors(containerColor = PrediqLiveCard),
+        border = BorderStroke(1.dp, PrediqLiveOutline),
+    ) {
+        Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text((game.competition ?: prettySport(game.sportCode)).uppercase(), color = PrediqLiveMuted, fontSize = 11.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(game.statusText ?: "LIVE", color = PrediqLiveLime, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelLarge)
+                }
+                StatusPill(if (game.analysisPromotable) "TOP SIGNAL" else "LIVE", if (game.analysisPromotable) PrediqLiveInk else Color.White, if (game.analysisPromotable) PrediqLiveLime else PrediqLiveCardAlt)
+            }
+
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1f)) {
+                    LiveTeamBadge(game.homeParticipant)
+                    Spacer(Modifier.height(8.dp))
+                    Text(game.homeParticipant, color = Color.White, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+                Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(horizontal = 10.dp)) {
+                    Text("${game.homeScore ?: "–"}  ${game.awayScore ?: "–"}", color = Color.White, fontSize = 30.sp, fontWeight = FontWeight.Bold)
+                    Text("SCORE", color = PrediqLiveMuted, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                }
+                Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1f)) {
+                    LiveTeamBadge(game.awayParticipant)
+                    Spacer(Modifier.height(8.dp))
+                    Text(game.awayParticipant, color = Color.White, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+            }
+
+            if (game.predictionAvailable) {
+                Surface(color = PrediqLiveCardAlt, shape = RoundedCornerShape(20.dp), border = BorderStroke(1.dp, PrediqLiveOutline)) {
+                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                            Column(Modifier.weight(1f)) {
+                                Text("PREDIQ LIVE CALL", color = PrediqLiveMuted, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                Text(game.selectionLabel ?: "Current assessment", color = Color.White, style = MaterialTheme.typography.titleLarge)
+                            }
+                            Surface(shape = CircleShape, color = PrediqLiveLime) {
+                                Text(probability(game.confidence ?: game.probability), Modifier.padding(horizontal = 12.dp, vertical = 7.dp), color = PrediqLiveInk, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                        game.why.firstOrNull()?.let { reason ->
+                            Row(verticalAlignment = Alignment.Top) {
+                                Icon(Icons.Outlined.AutoGraph, null, tint = PrediqLiveLime, modifier = Modifier.size(18.dp))
+                                Spacer(Modifier.width(8.dp))
+                                Text(reason, color = PrediqLiveMuted, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+                            }
+                        }
+                        game.watchOuts.firstOrNull()?.let { risk ->
+                            Row(verticalAlignment = Alignment.Top) {
+                                Icon(Icons.Outlined.WarningAmber, null, tint = Color(0xFFFFC66B), modifier = Modifier.size(18.dp))
+                                Spacer(Modifier.width(8.dp))
+                                Text(risk, color = Color(0xFFE7D2AF), style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+                            }
+                        }
+                    }
+                }
+            } else {
+                Surface(color = PrediqLiveCardAlt, shape = RoundedCornerShape(18.dp)) {
+                    Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Outlined.Visibility, null, tint = PrediqLiveMuted)
+                        Spacer(Modifier.width(10.dp))
+                        Text("Tracking this match. PredIQ is withholding a call until the evidence clears its confidence gate.", color = PrediqLiveMuted, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+                    }
+                }
+            }
+
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Text("Analysed ${relativeTime(game.lastAnalysedAt ?: game.updatedAt)}", color = PrediqLiveMuted, fontSize = 11.sp)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Open analysis", color = PrediqLiveLime, fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
+                    Icon(Icons.Outlined.ChevronRight, null, tint = PrediqLiveLime, modifier = Modifier.size(18.dp))
+                }
+            }
+        }
     }
 }
 
