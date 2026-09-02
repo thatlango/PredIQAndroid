@@ -87,39 +87,69 @@ fun LiveScreen(state: PrediqUiState, vm: PrediqViewModel, onAuth: () -> Unit, on
         while (isActive) { delay(300_000); vm.loadLive() }
     }
     val live = state.live
-    val filtered = live?.games.orEmpty().filter { (state.selectedSport.isBlank() || it.sportCode == state.selectedSport) && (!bestOnly || it.analysisPromotable) }
+    val filtered = live?.games.orEmpty().filter {
+        (state.selectedSport.isBlank() || it.sportCode == state.selectedSport) && (!bestOnly || it.analysisPromotable)
+    }
+
     LazyColumn(
         modifier = Modifier.fillMaxSize().background(PrediqBackground),
-        contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 100.dp),
+        contentPadding = PaddingValues(start = 18.dp, end = 18.dp, top = 14.dp, bottom = 100.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        item {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Top) {
-                Column { Row(verticalAlignment = Alignment.CenterVertically) { Text("LIVE", style = MaterialTheme.typography.headlineMedium); Spacer(Modifier.width(8.dp)); Text("(${live?.liveCount ?: 0})", color = PrediqBlue, style = MaterialTheme.typography.titleLarge) }; Text(live?.message ?: "Checking live games…", color = PrediqMuted) }
-                IconButton(onClick = vm::loadLive) { Icon(Icons.Outlined.Refresh, "Refresh") }
-            }
-        }
+        item { LiveOverviewHero(live, state.loadingLive, vm::loadLive) }
         item { SportChips(primarySports(state.filterOptions.sports), state.selectedSport, vm::selectSport) }
         item {
-            Row(Modifier.fillMaxWidth().background(PrediqSurfaceLow, RoundedCornerShape(14.dp)).padding(4.dp)) {
+            Row(Modifier.fillMaxWidth().background(Color.White, RoundedCornerShape(18.dp)).padding(5.dp)) {
                 ToggleSegment("All Live", !bestOnly, Modifier.weight(1f)) { bestOnly = false }
                 ToggleSegment("Best Opportunities", bestOnly, Modifier.weight(1f)) { bestOnly = true }
             }
         }
-        if (state.loadingLive && live == null) item { StateCard("Checking live games…", "This request will resolve into live analysis, no opportunity, cached analysis or an error state.") }
-        if (state.liveError != null) item { StateCard(if (live != null) "Showing last-known analysis" else "Live could not refresh", state.liveError, error = live == null, cached = live != null, action = "Retry", onAction = vm::loadLive) }
-        if (live != null && state.liveError == null) item {
-            when (live.state) {
-                "cached" -> StateCard("Showing last-known analysis", live.message, cached = true, action = "Refresh", onAction = vm::loadLive)
-                "service_error" -> StateCard("Live is temporarily unavailable", live.message, error = true, action = "Retry", onAction = vm::loadLive)
-                "live_no_opportunities" -> StateCard("Live checked", live.message)
-                else -> StateCard("Live analysis is active", live.message)
+
+        if (state.liveError != null) {
+            item {
+                StateCard(
+                    if (live != null) "Using last-known live intelligence" else "Live could not refresh",
+                    state.liveError,
+                    error = live == null,
+                    cached = live != null,
+                    action = "Retry",
+                    onAction = vm::loadLive,
+                )
             }
+        } else if (live?.state == "cached") {
+            item { StateCard("Fresh data is catching up", live.message, cached = true, action = "Refresh", onAction = vm::loadLive) }
+        } else if (live?.state == "service_error") {
+            item { StateCard("Live is temporarily unavailable", live.message, error = true, action = "Retry", onAction = vm::loadLive) }
         }
-        if (state.account == null && (live?.liveCount ?: 0) > 0) item { StateCard("Live games are active", "Sign in to see PredIQ’s current live probabilities and reasons.", action = "Sign in", onAction = onAuth) }
+
+        if (state.account == null && (live?.liveCount ?: 0) > 0) {
+            item { StateCard("Live intelligence is active", "Sign in to open PredIQ probabilities, reasons, risks and match-level analysis.", action = "Sign in", onAction = onAuth) }
+        }
+
         if (vm.fullAccess) {
-            if (filtered.isEmpty() && !state.loadingLive) item { StateCard(if (bestOnly) "No strong live opportunities" else "No tracked live games", if (bestOnly) "PredIQ is tracking the games but none currently clear the promotion checks." else "Check back when tracked events are underway.") }
-            items(filtered.take(10), key = { it.eventId }) { game -> LiveMatchCard(game) { onMatch(game.eventId) } }
+            if (filtered.isNotEmpty()) {
+                item {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Bottom) {
+                        Column {
+                            Text(if (bestOnly) "Best live opportunities" else "Live matches", style = MaterialTheme.typography.titleLarge)
+                            Text(
+                                if (bestOnly) "Only calls currently clearing PredIQ promotion checks." else "Current scores and intelligence, ordered by signal strength.",
+                                color = PrediqMuted,
+                                style = MaterialTheme.typography.bodyMedium,
+                            )
+                        }
+                        Text(filtered.size.toString(), color = PrediqBlue, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleLarge)
+                    }
+                }
+                items(filtered.take(10), key = { it.eventId }) { game -> LiveMatchCard(game) { onMatch(game.eventId) } }
+            } else if (!state.loadingLive && state.liveError == null) {
+                item {
+                    StateCard(
+                        if (bestOnly) "No strong live opportunities" else "No tracked live games",
+                        if (bestOnly) "PredIQ is tracking live fixtures but none currently clear the evidence and confidence gates." else "No tracked event is underway right now. PredIQ will populate this screen automatically when live fixtures begin.",
+                    )
+                }
+            }
         }
     }
 }
@@ -256,7 +286,7 @@ fun LeagueWinnersScreen(leagues: List<LeagueForecast>, onBack: () -> Unit) {
 }
 
 @Composable private fun ModeTab(label: String, active: Boolean, onClick: () -> Unit) { Column(Modifier.clickable(onClick = onClick).padding(vertical = 5.dp), horizontalAlignment = Alignment.CenterHorizontally) { Text(label, color = if (active) PrediqBlue else PrediqMuted, fontWeight = FontWeight.SemiBold); Spacer(Modifier.height(6.dp)); Box(Modifier.width(50.dp).height(2.dp).background(if (active) PrediqBlue else Color.Transparent)) } }
-@Composable private fun ToggleSegment(label: String, active: Boolean, modifier: Modifier, onClick: () -> Unit) { Surface(modifier.clickable(onClick = onClick), color = if (active) Color.White else Color.Transparent, shape = RoundedCornerShape(10.dp), shadowElevation = if (active) 1.dp else 0.dp) { Box(Modifier.heightIn(min = 44.dp).padding(horizontal = 12.dp), contentAlignment = Alignment.Center) { Text(label, color = if (active) PrediqBlue else PrediqMuted, fontWeight = FontWeight.SemiBold, fontSize = 13.sp) } } }
+@Composable private fun ToggleSegment(label: String, active: Boolean, modifier: Modifier, onClick: () -> Unit) { Surface(modifier.clickable(onClick = onClick), color = if (active) PrediqLiveInk else Color.Transparent, shape = RoundedCornerShape(14.dp), shadowElevation = 0.dp) { Box(Modifier.heightIn(min = 46.dp).padding(horizontal = 12.dp), contentAlignment = Alignment.Center) { Text(label, color = if (active) PrediqLiveLime else PrediqMuted, fontWeight = FontWeight.SemiBold, fontSize = 13.sp) } } }
 @Composable private fun SummaryMetric(label: String, value: String, sub: String, modifier: Modifier, highlight: Boolean = false) { Card(modifier, shape = RoundedCornerShape(24.dp), colors = CardDefaults.cardColors(containerColor = if (highlight) PrediqBlue else Color.White)) { Column(Modifier.padding(16.dp).heightIn(min = 108.dp), verticalArrangement = Arrangement.SpaceBetween) { Text(label, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = if (highlight) Color(0xFFDAE1FF) else PrediqMuted); Text(value, style = MaterialTheme.typography.headlineMedium, color = if (highlight) Color.White else PrediqBlue); Text(sub, fontSize = 12.sp, color = if (highlight) Color(0xFFDAE1FF) else PrediqMuted) } } }
 @Composable private fun PlanCard(plan: PlanDto, active: Boolean, onClick: () -> Unit) { PrediqCard(Modifier.fillMaxWidth()) { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) { Column { Text(plan.name, style = MaterialTheme.typography.titleLarge); Text("Full access for ${plan.durationDays} day${if (plan.durationDays == 1) "" else "s"}", color = PrediqMuted) }; Text(ugx(plan.priceUgx), color = PrediqBlue, fontWeight = FontWeight.Bold) }; Button(onClick = onClick, enabled = true, modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)) { Text(if (active) "Extend ${plan.name}" else "Subscribe ${plan.name}") } } }
 @Composable private fun AccountAction(icon: androidx.compose.ui.graphics.vector.ImageVector, title: String, onClick: () -> Unit, danger: Boolean = false) { Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) { Icon(icon, null, tint = if (danger) PrediqRed else PrediqMuted); Spacer(Modifier.width(14.dp)); Text(title, Modifier.weight(1f), color = if (danger) PrediqRed else MaterialTheme.colorScheme.onSurface); if (!danger) Icon(Icons.Outlined.ChevronRight, null, tint = PrediqMuted) } }
