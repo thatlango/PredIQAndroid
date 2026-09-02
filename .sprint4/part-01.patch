@@ -1,0 +1,102 @@
++            }
++
++            if (pick.explanation.isNotEmpty()) {
++                Text("Why it ranks", style = MaterialTheme.typography.labelLarge, color = PrediqMuted)
++                IndicatorList(pick.explanation.take(2))
++            }
++            pick.watchOuts.firstOrNull()?.let { risk ->
++                RiskNote(risk)
++            }
++            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
++                Text("Open the evidence, risks and context", color = PrediqMuted, style = MaterialTheme.typography.bodySmall)
++                Icon(Icons.Outlined.ArrowForward, "Open analysis", tint = PrediqBlue)
+             }
+         }
+-        if (pick.explanation.isNotEmpty()) IndicatorList(pick.explanation.take(3))
+-        Button(onClick = onOpen, modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp), shape = RoundedCornerShape(12.dp)) { Text("View Full Analysis") }
+     }
+ }
+ 
+ @Composable
+-fun AssessmentCard(item: AssessmentDto, onOpen: () -> Unit) {
+-    PrediqCard(Modifier.fillMaxWidth(), onOpen) {
++private fun ConfidenceBarDark(value: Double?) {
++    val progress = (value ?: 0.0).coerceIn(0.0, 1.0).toFloat()
++    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+-            Text("${item.competition ?: prettySport(item.sportCode)} • ${kickoff(item.startsAt)}", style = MaterialTheme.typography.labelLarge, color = PrediqMuted, modifier = Modifier.weight(1f))
+-            StatusPill(if (item.promotable) (item.confidenceBand ?: "PICK").uppercase() else "WATCH", if (item.promotable) PrediqGreen else PrediqAmber, if (item.promotable) Color(0xFFE9F8EF) else Color(0xFFFFF3E7))
++            Text("CONFIDENCE", color = PrediqLiveMuted, style = MaterialTheme.typography.labelSmall)
++            Text(probability(value), color = Color.White, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelMedium)
++        }
++        Box(Modifier.fillMaxWidth().height(6.dp).clip(CircleShape).background(PrediqLiveCardAlt)) {
++            Box(Modifier.fillMaxWidth(progress).fillMaxHeight().clip(CircleShape).background(PrediqLiveLime))
++        }
++    }
++}
++
++@Composable
++fun AssessmentCard(item: AssessmentDto, onOpen: () -> Unit) {
++    val risk = item.riskLevel?.replace('_', ' ')?.replaceFirstChar(Char::uppercase) ?: "Unspecified"
++    val riskColor = when (item.riskLevel?.lowercase()) {
++        "low" -> PrediqGreen
++        "high", "very_high" -> PrediqRed
++        else -> PrediqAmber
++    }
++    Card(
++        modifier = Modifier.fillMaxWidth().clickable(onClick = onOpen),
++        shape = RoundedCornerShape(22.dp),
++        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
++        border = BorderStroke(1.dp, if (item.promotable) Color(0xFFD7E7DD) else Color(0xFFE3E7E8)),
++    ) {
++        Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(13.dp)) {
++            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
++                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
++                    CompetitionMark(item.competition, item.sportCode, 26.dp)
++                    if (!item.competition.isNullOrBlank()) Spacer(Modifier.width(8.dp))
++                    Text("${item.competition ?: prettySport(item.sportCode)} • ${kickoff(item.startsAt)}", style = MaterialTheme.typography.labelMedium, color = PrediqMuted, maxLines = 1, overflow = TextOverflow.Ellipsis)
++                }
++                Spacer(Modifier.width(8.dp))
++                StatusPill(if (item.promotable) (item.confidenceBand ?: "PICK").uppercase() else "WATCH", if (item.promotable) PrediqGreen else PrediqAmber, if (item.promotable) Color(0xFFE9F8EF) else Color(0xFFFFF3E7))
++            }
++
++            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
++                TeamCrest(item.homeParticipant, item.sportCode, 42.dp)
++                Spacer(Modifier.width(9.dp))
++                Text(compactTeamName(item.homeParticipant, item.sportCode), fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
++                Text("vs", color = PrediqMuted, modifier = Modifier.padding(horizontal = 8.dp))
++                Text(compactTeamName(item.awayParticipant, item.sportCode), fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
++                Spacer(Modifier.width(9.dp))
++                TeamCrest(item.awayParticipant, item.sportCode, 42.dp)
++            }
++
++            Surface(color = PrediqBackground, shape = RoundedCornerShape(16.dp)) {
++                Row(Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
++                    Column(Modifier.weight(1f)) {
++                        Text("PREDIQ CALL", style = MaterialTheme.typography.labelSmall, color = PrediqMuted, fontWeight = FontWeight.Bold)
++                        Text(item.selectionLabel ?: "Assessment", style = MaterialTheme.typography.titleMedium, color = PrediqBlue, fontWeight = FontWeight.Bold)
++                        Text(marketName(item.marketKey), color = PrediqMuted, style = MaterialTheme.typography.bodySmall)
++                    }
++                    Column(horizontalAlignment = Alignment.End) {
++                        Text(probability(item.probability), style = MaterialTheme.typography.headlineSmall, color = PrediqBlue, fontWeight = FontWeight.Bold)
++                        Text("probability", color = PrediqMuted, style = MaterialTheme.typography.labelSmall)
++                    }
++                }
++            }
++
++            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
++                CompactSignal("CONFIDENCE", probability(item.confidence), PrediqBlue, Modifier.weight(1f))
++                CompactSignal("RISK", risk, riskColor, Modifier.weight(1f))
++                CompactSignal("FRESHNESS", relativeTime(item.lastAnalysedAt), PrediqMuted, Modifier.weight(1f))
++            }
++
++            if (item.why.isNotEmpty()) {
++                Text("Why PredIQ sees it", style = MaterialTheme.typography.labelLarge, color = PrediqMuted)
++                IndicatorList(item.why.take(2))
++            }
++            item.watchOuts.firstOrNull()?.let(::RiskNote)
++            item.changeReason?.let {
++                Surface(color = Color(0xFFEEF3FF), shape = RoundedCornerShape(12.dp)) {
++                    Row(Modifier.padding(12.dp), verticalAlignment = Alignment.Top) {
++                        Icon(Icons.Outlined.Update, null, tint = PrediqBlue, modifier = Modifier.size(18.dp))
++                        Spacer(Modifier.width(8.dp))
