@@ -38,6 +38,8 @@ import com.getprediq.app.data.*
 import com.getprediq.app.ui.*
 import com.getprediq.app.ui.theme.PrediqBackground
 import com.getprediq.app.ui.theme.PrediqBlue
+import com.getprediq.app.ui.theme.PrediqLiveInk
+import com.getprediq.app.ui.theme.PrediqLiveLime
 import com.getprediq.app.ui.theme.PrediqMuted
 import com.getprediq.app.ui.theme.PrediqSurfaceLow
 import kotlinx.coroutines.launch
@@ -97,13 +99,11 @@ private fun MainTabsV2(state: PrediqUiState, vm: PrediqViewModel, onMatch: (Stri
     var filtersOpen by rememberSaveable { mutableStateOf(false) }
     fun requestAccess() { if (state.account == null) authOpen = true else tab = MainTabV2.Account }
 
-    LaunchedEffect(vm.fullAccess) { if (!vm.fullAccess) tab = MainTabV2.Account }
-
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         bottomBar = {
             NavigationBar(containerColor = MaterialTheme.colorScheme.surface, tonalElevation = 2.dp) {
-                (if (vm.fullAccess) MainTabV2.entries else listOf(MainTabV2.Account)).forEach { item ->
+                MainTabV2.entries.forEach { item ->
                     val icon = when (item) {
                         MainTabV2.Today -> Icons.Outlined.Today
                         MainTabV2.Live -> Icons.Outlined.Sensors
@@ -111,7 +111,20 @@ private fun MainTabsV2(state: PrediqUiState, vm: PrediqViewModel, onMatch: (Stri
                         MainTabV2.Explore -> Icons.Outlined.Explore
                         MainTabV2.Account -> Icons.Outlined.Person
                     }
-                    NavigationBarItem(selected = tab == item, onClick = { tab = item }, icon = { Icon(icon, null) }, label = { Text(item.label) })
+                    NavigationBarItem(
+                        selected = tab == item,
+                        onClick = { tab = item },
+                        icon = { Icon(icon, contentDescription = item.label) },
+                        label = { Text(item.label) },
+                        alwaysShowLabel = true,
+                        colors = NavigationBarItemDefaults.colors(
+                            selectedIconColor = PrediqLiveInk,
+                            selectedTextColor = PrediqLiveInk,
+                            indicatorColor = PrediqLiveLime,
+                            unselectedIconColor = PrediqMuted,
+                            unselectedTextColor = PrediqMuted,
+                        ),
+                    )
                 }
             }
         },
@@ -172,8 +185,8 @@ private fun AccountHubScreen(
     ) {
         item {
             Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                Text("Your PredIQ", style = MaterialTheme.typography.headlineMedium)
-                Text("Subscription, payments, profile and intelligence alerts in one place.", color = PrediqMuted)
+                Text("Account & access", style = MaterialTheme.typography.headlineMedium)
+                Text("Your Tuku identity, PredIQ access, payments and intelligence alerts.", color = PrediqMuted)
             }
         }
         val account = state.account
@@ -181,8 +194,8 @@ private fun AccountHubScreen(
             item {
                 V2Card {
                     Icon(Icons.Outlined.LockOpen, null, tint = PrediqBlue, modifier = Modifier.size(48.dp))
-                    Text("Seven days of full access", style = MaterialTheme.typography.titleLarge)
-                    Text("Create one Tuku account and open every sport, live view, result and intelligence screen.", color = PrediqMuted)
+                    Text("Seven days of full PredIQ", style = MaterialTheme.typography.titleLarge)
+                    Text("Preview Today, Live, Results and Explore first. Sign in when you want the full evidence, risks and match intelligence layer.", color = PrediqMuted)
                     Button(onClick = onAuth, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) { Text("Start 7-day trial") }
                     Text("Plans start at UGX 15,000. Paid time begins after any remaining trial access.", color = PrediqMuted, style = MaterialTheme.typography.bodySmall)
                 }
