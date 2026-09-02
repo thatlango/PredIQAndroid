@@ -1,0 +1,106 @@
++        Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
++            Text(label, color = PrediqLiveMuted, style = MaterialTheme.typography.labelSmall, maxLines = 1)
++            Text(value, color = accent, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelMedium, maxLines = 1)
++        }
++    }
++}
++
++private fun confidenceBand(value: Double?): String = when {
++    value == null -> "UNRATED"
++    value >= .80 -> "TOP"
++    value >= .70 -> "HIGH"
++    value >= .58 -> "MODERATE"
++    else -> "CAUTIOUS"
++}
++
++@Composable
+ fun LeagueWinnersScreen(leagues: List<LeagueForecast>, onBack: () -> Unit) {
+     LazyColumn(Modifier.fillMaxSize().background(PrediqBackground), contentPadding = PaddingValues(20.dp, 12.dp, 20.dp, 50.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
+         item { BackHeader("League Winner Predictions", onBack) }
+--- a/app/src/main/java/com/getprediq/app/ui/ExploreScreen.kt
++++ b/app/src/main/java/com/getprediq/app/ui/ExploreScreen.kt
+@@ -8,10 +8,7 @@
+ import androidx.compose.foundation.shape.CircleShape
+ import androidx.compose.foundation.shape.RoundedCornerShape
+ import androidx.compose.material.icons.Icons
+-import androidx.compose.material.icons.outlined.CompareArrows
+-import androidx.compose.material.icons.outlined.Groups
+-import androidx.compose.material.icons.outlined.PersonSearch
+-import androidx.compose.material.icons.outlined.Search
++import androidx.compose.material.icons.outlined.*
+ import androidx.compose.material3.*
+ import androidx.compose.runtime.*
+ import androidx.compose.ui.Alignment
+@@ -73,6 +70,7 @@
+                 if (state.teams.isEmpty()) vm.loadTeams(sport, state.selectedCompetition)
+                 if (state.leagueProfiles.isEmpty()) vm.loadLeagueProfiles(sport)
+             }
++            "leagues" -> if (state.leagueProfiles.isEmpty()) vm.loadLeagueProfiles(sport)
+         }
+     }
+ 
+@@ -85,15 +83,11 @@
+         contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 100.dp),
+         verticalArrangement = Arrangement.spacedBy(16.dp),
+     ) {
+-        item {
+-            Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+-                Text("Explore", style = MaterialTheme.typography.headlineMedium)
+-                Text("Team, player and squad evidence behind PredIQ decisions.", color = PrediqMuted)
+-            }
+-        }
++        item { ExploreCoverageHero(state, sport) }
+         item {
+             Row(Modifier.fillMaxWidth().background(PrediqSurfaceLow, RoundedCornerShape(14.dp)).padding(4.dp)) {
+                 ExploreSegment("Teams", mode == "teams", Modifier.weight(1f)) { mode = "teams" }
++                ExploreSegment("Leagues", mode == "leagues", Modifier.weight(1f)) { mode = "leagues" }
+                 ExploreSegment("Players", mode == "players", Modifier.weight(1f)) { mode = "players" }
+                 ExploreSegment("Squad", mode == "squad", Modifier.weight(1f)) { mode = "squad" }
+             }
+@@ -161,18 +155,36 @@
+                             shape = RoundedCornerShape(18.dp),
+                             elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+                         ) {
+-                            Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
++                            Row(Modifier.fillMaxWidth().padding(15.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
++                                TeamCrest(team.teamName, team.sportCode, 44.dp)
++                                Spacer(Modifier.width(12.dp))
+                                 Column(Modifier.weight(1f)) {
+                                     Text(team.teamName, fontWeight = FontWeight.SemiBold)
+                                     Text("${team.matchesCount} matches observed", color = PrediqMuted, style = MaterialTheme.typography.bodySmall)
+                                 }
+-                                Text(profileHeadline(team.profile), color = PrediqBlue, style = MaterialTheme.typography.labelMedium)
++                                Column(horizontalAlignment = Alignment.End) {
++                                    Text(profileHeadline(team.profile), color = PrediqBlue, style = MaterialTheme.typography.labelMedium)
++                                    Icon(Icons.Outlined.ChevronRight, null, tint = PrediqMuted, modifier = Modifier.size(18.dp))
++                                }
+                             }
+                         }
+                     }
+                 }
+             }
+ 
++            "leagues" -> {
++                item {
++                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
++                        Text("League intelligence", style = MaterialTheme.typography.titleLarge)
++                        Text("Competition-level evidence separated from individual fixture calls.", color = PrediqMuted, style = MaterialTheme.typography.bodySmall)
++                    }
++                }
++                state.exploreError?.let { error -> item { StateCard("League intelligence could not refresh", error, error = true, action = "Retry", onAction = { vm.loadLeagueProfiles(sport) }) } }
++                if (state.exploreBusy && state.leagueProfiles.isEmpty()) item { StateCard("Loading league intelligence…", "PredIQ is resolving competition-level observations and coverage.") }
++                if (!state.exploreBusy && state.leagueProfiles.isEmpty()) item { StateCard("No league profile yet", "PredIQ needs enough observed competition evidence before it publishes a league intelligence profile.") }
++                items(state.leagueProfiles, key = { "${it.sportCode}-${it.competition}-${it.season}" }) { league -> LeagueIntelligenceCard(league) }
++            }
++
+             "players" -> {
+                 item {
+                     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+@@ -192,7 +204,9 @@
+                             shape = RoundedCornerShape(18.dp),
+                             elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+                         ) {
+-                            Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
++                            Row(Modifier.fillMaxWidth().padding(15.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
++                                PlayerHeadshot(player.name, player.sportCode, 44.dp)
++                                Spacer(Modifier.width(12.dp))
