@@ -19,7 +19,14 @@ import java.util.concurrent.TimeUnit
 class ApiException(val status: Int, override val message: String) : Exception(message)
 
 class PrediqApi(private val session: SessionStore) {
-    private val json = Json { ignoreUnknownKeys = true; explicitNulls = false; isLenient = true }
+    private val json = Json {
+        ignoreUnknownKeys = true
+        explicitNulls = false
+        isLenient = true
+        // Defensive mobile boundary: if a nullable backend collection leaks through as
+        // explicit null, treat it as missing so DTO defaults (emptyList) are used.
+        coerceInputValues = true
+    }
     private val client = OkHttpClient.Builder().connectTimeout(10, TimeUnit.SECONDS).readTimeout(15, TimeUnit.SECONDS).writeTimeout(15, TimeUnit.SECONDS).build()
     private val mediaType = "application/json; charset=utf-8".toMediaType()
 
