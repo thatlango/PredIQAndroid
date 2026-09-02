@@ -13,3 +13,6 @@ This sprint moves PredIQ Android from a generic sports feed toward an intelligen
 
 ## Guardrails
 No backend/API contracts were removed or weakened. Existing sports-media work, Material 3 foundation and live intelligence states are preserved.
+
+## Release verification
+Sprint 4 source compile fixes have been applied. This commit intentionally re-triggers Android CI from a user-authored repository write so the final debug APK can be produced and verified before merge.
