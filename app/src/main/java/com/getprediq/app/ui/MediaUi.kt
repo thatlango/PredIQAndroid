@@ -1,9 +1,11 @@
 package com.getprediq.app.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.Icon
@@ -60,19 +62,26 @@ fun TeamCrest(name: String, sport: String = "football", size: Dp = 48.dp, modifi
     val individual = sport in setOf("tennis", "boxing", "mma")
     val media = MediaCatalogStore.participant(name, sport)
     val url = media?.optimizedImageUrl ?: media?.imageUrl
+    val shape = if (individual) CircleShape else RoundedCornerShape(size * .28f)
+    val frameBackground = if (dark) Color.White.copy(alpha = .10f) else Color.White
+    val frameBorder = if (dark) Color.White.copy(alpha = .16f) else Color(0xFFE3E9F0)
     Box(
-        modifier.size(size).clip(CircleShape).background(if (dark) Color.White.copy(alpha = .10f) else PrediqSurfaceLow),
+        modifier = modifier
+            .size(size)
+            .clip(shape)
+            .background(frameBackground)
+            .border(1.dp, frameBorder, shape),
         contentAlignment = Alignment.Center,
     ) {
         if (!url.isNullOrBlank()) {
             AsyncImage(
                 model = url,
                 contentDescription = if (individual) "$name player photo" else "$name crest",
-                modifier = if (individual) Modifier.size(size) else Modifier.size(size * .82f),
+                modifier = if (individual) Modifier.size(size) else Modifier.size(size * .78f),
                 contentScale = if (individual) ContentScale.Crop else ContentScale.Fit,
             )
         } else if (individual) {
-            SportGlyph(sport, Modifier.size(size * .52f), tint = if (dark) Color.White else PrediqMuted)
+            SportGlyph(sport, Modifier.size(size * .48f), tint = if (dark) Color.White else PrediqMuted)
         } else {
             Text(teamInitials(name), fontWeight = FontWeight.Bold, color = if (dark) Color.White else PrediqMuted, fontSize = 12.sp)
         }
@@ -80,15 +89,30 @@ fun TeamCrest(name: String, sport: String = "football", size: Dp = 48.dp, modifi
 }
 
 @Composable
-fun CompetitionMark(name: String?, sport: String = "football", size: Dp = 24.dp, modifier: Modifier = Modifier) {
+fun CompetitionMark(name: String?, sport: String = "football", size: Dp = 28.dp, modifier: Modifier = Modifier) {
     if (name.isNullOrBlank()) return
     HydrateMediaCatalog()
     val media = MediaCatalogStore.competition(name, sport)
     val url = media?.optimizedImageUrl ?: media?.imageUrl
-    if (!url.isNullOrBlank()) {
-        AsyncImage(model = url, contentDescription = "$name logo", modifier = modifier.size(size), contentScale = ContentScale.Fit)
-    } else {
-        SportGlyph(sport, modifier.size(size), tint = PrediqMuted)
+    val shape = RoundedCornerShape(size * .28f)
+    Box(
+        modifier = modifier
+            .size(size)
+            .clip(shape)
+            .background(Color.White)
+            .border(1.dp, Color(0xFFE3E9F0), shape),
+        contentAlignment = Alignment.Center,
+    ) {
+        if (!url.isNullOrBlank()) {
+            AsyncImage(
+                model = url,
+                contentDescription = "$name logo",
+                modifier = Modifier.size(size * .72f),
+                contentScale = ContentScale.Fit,
+            )
+        } else {
+            SportGlyph(sport, Modifier.size(size * .56f), tint = PrediqMuted)
+        }
     }
 }
 
@@ -97,11 +121,23 @@ fun PlayerHeadshot(name: String, sport: String = "football", size: Dp = 46.dp, m
     HydrateMediaCatalog()
     val media = MediaCatalogStore.player(name, sport)
     val url = media?.optimizedImageUrl ?: media?.imageUrl
-    Box(modifier.size(size).clip(CircleShape).background(PrediqSurfaceLow), contentAlignment = Alignment.Center) {
+    Box(
+        modifier = modifier
+            .size(size)
+            .clip(CircleShape)
+            .background(PrediqSurfaceLow)
+            .border(1.dp, Color(0xFFE3E9F0), CircleShape),
+        contentAlignment = Alignment.Center,
+    ) {
         if (!url.isNullOrBlank()) {
-            AsyncImage(model = url, contentDescription = "$name player photo", modifier = Modifier.size(size), contentScale = ContentScale.Crop)
+            AsyncImage(
+                model = url,
+                contentDescription = "$name player photo",
+                modifier = Modifier.size(size),
+                contentScale = ContentScale.Crop,
+            )
         } else {
-            SportGlyph(sport, Modifier.size(size * .52f), tint = PrediqMuted)
+            SportGlyph(sport, Modifier.size(size * .48f), tint = PrediqMuted)
         }
     }
 }
