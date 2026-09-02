@@ -1,0 +1,20 @@
+--- a/app/src/main/java/com/getprediq/app/PrediqAppV2.kt
++++ b/app/src/main/java/com/getprediq/app/PrediqAppV2.kt
+@@ -39,6 +39,8 @@
+ import com.getprediq.app.ui.theme.PrediqBackground
+ import com.getprediq.app.ui.theme.PrediqBlue
++import com.getprediq.app.ui.theme.PrediqLiveInk
++import com.getprediq.app.ui.theme.PrediqLiveLime
+ import com.getprediq.app.ui.theme.PrediqMuted
+ import com.getprediq.app.ui.theme.PrediqSurfaceLow
+ import kotlinx.coroutines.launch
+--- a/app/src/main/java/com/getprediq/app/ui/Components.kt
++++ b/app/src/main/java/com/getprediq/app/ui/Components.kt
+@@ -294,7 +294,7 @@
+                 Text("Why PredIQ sees it", style = MaterialTheme.typography.labelLarge, color = PrediqMuted)
+                 IndicatorList(item.why.take(2))
+             }
+-            item.watchOuts.firstOrNull()?.let(::RiskNote)
++            item.watchOuts.firstOrNull()?.let { riskText -> RiskNote(riskText) }
+             item.changeReason?.let {
+                 Surface(color = Color(0xFFEEF3FF), shape = RoundedCornerShape(12.dp)) {
