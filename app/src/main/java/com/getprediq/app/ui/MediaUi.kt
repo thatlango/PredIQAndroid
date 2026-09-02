@@ -32,7 +32,7 @@ private fun HydrateMediaCatalog() {
 }
 
 fun compactTeamName(name: String, sport: String = "football"): String {
-    val media = MediaCatalogStore.team(name, sport)
+    val media = MediaCatalogStore.participant(name, sport)
     return media?.shortCode?.takeIf { media.isCanonicalCode && it.isNotBlank() } ?: name
 }
 
@@ -57,7 +57,8 @@ fun SportGlyph(sport: String, modifier: Modifier = Modifier, tint: Color = Mater
 @Composable
 fun TeamCrest(name: String, sport: String = "football", size: Dp = 48.dp, modifier: Modifier = Modifier, dark: Boolean = false) {
     HydrateMediaCatalog()
-    val media = MediaCatalogStore.team(name, sport)
+    val individual = sport in setOf("tennis", "boxing", "mma")
+    val media = MediaCatalogStore.participant(name, sport)
     val url = media?.optimizedImageUrl ?: media?.imageUrl
     Box(
         modifier.size(size).clip(CircleShape).background(if (dark) Color.White.copy(alpha = .10f) else PrediqSurfaceLow),
@@ -66,10 +67,12 @@ fun TeamCrest(name: String, sport: String = "football", size: Dp = 48.dp, modifi
         if (!url.isNullOrBlank()) {
             AsyncImage(
                 model = url,
-                contentDescription = "$name crest",
-                modifier = Modifier.size(size * .82f),
-                contentScale = ContentScale.Fit,
+                contentDescription = if (individual) "$name player photo" else "$name crest",
+                modifier = if (individual) Modifier.size(size) else Modifier.size(size * .82f),
+                contentScale = if (individual) ContentScale.Crop else ContentScale.Fit,
             )
+        } else if (individual) {
+            SportGlyph(sport, Modifier.size(size * .52f), tint = if (dark) Color.White else PrediqMuted)
         } else {
             Text(teamInitials(name), fontWeight = FontWeight.Bold, color = if (dark) Color.White else PrediqMuted, fontSize = 12.sp)
         }
@@ -98,7 +101,7 @@ fun PlayerHeadshot(name: String, sport: String = "football", size: Dp = 46.dp, m
         if (!url.isNullOrBlank()) {
             AsyncImage(model = url, contentDescription = "$name player photo", modifier = Modifier.size(size), contentScale = ContentScale.Crop)
         } else {
-            Text(teamInitials(name).take(2), fontWeight = FontWeight.Bold, color = PrediqMuted, fontSize = 12.sp)
+            SportGlyph(sport, Modifier.size(size * .52f), tint = PrediqMuted)
         }
     }
 }
