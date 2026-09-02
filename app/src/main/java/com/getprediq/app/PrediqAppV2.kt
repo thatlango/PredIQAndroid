@@ -457,8 +457,9 @@ private fun NotificationSheetV2(state: PrediqUiState, vm: PrediqViewModel, onClo
                         busy = true; error = null
                         runCatching {
                             repo.updateLeagueAlerts(selectedLeagues.sorted())
-                            vm.saveNotifications(local)
-                            if (local.pushEnabled) PushRegistrationCoordinator.sync(context.applicationContext)
+                            val safeNotifications = if (pushConfigured) local else local.copy(pushEnabled = false)
+                            vm.saveNotifications(safeNotifications)
+                            if (safeNotifications.pushEnabled) PushRegistrationCoordinator.sync(context.applicationContext)
                         }.onSuccess { busy = false; onClose() }
                             .onFailure { busy = false; error = it.message ?: "Notification preferences could not be saved" }
                     }
