@@ -1,0 +1,93 @@
+--- a/app/src/main/java/com/getprediq/app/ui/Screens.kt
++++ b/app/src/main/java/com/getprediq/app/ui/Screens.kt
+@@ -33,75 +33,149 @@
+ 
+ @Composable
+ fun TodayScreen(state: PrediqUiState, vm: PrediqViewModel, onAuth: () -> Unit, onMatch: (String) -> Unit, onLeagueWinners: () -> Unit) {
++    val rankedAssessments = remember(state.assessments) {
++        state.assessments.sortedWith(
++            compareByDescending<AssessmentDto> { it.promotable }
++                .thenByDescending { it.confidence ?: 0.0 }
++                .thenByDescending { it.probability ?: 0.0 }
++        )
++    }
+     LazyColumn(
+         modifier = Modifier.fillMaxSize().background(PrediqBackground),
+-        contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 100.dp),
+-        verticalArrangement = Arrangement.spacedBy(24.dp),
++        contentPadding = PaddingValues(start = 18.dp, end = 18.dp, top = 14.dp, bottom = 100.dp),
++        verticalArrangement = Arrangement.spacedBy(18.dp),
+     ) {
+-        item {
+-            Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+-                    Row(verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Outlined.AutoGraph, null, tint = PrediqBlue); Spacer(Modifier.width(7.dp)); Text("PredIQ", style = MaterialTheme.typography.titleLarge, color = PrediqBlue, fontWeight = FontWeight.Bold) }
+-                    SubscriptionPill(state.account?.subscriptionProgress)
+-                }
+-                Text(greeting(state.account?.user?.displayName), style = MaterialTheme.typography.headlineMedium)
+-                Text("Football, basketball, cricket, tennis and more—held to one evidence standard.", color = PrediqMuted)
+-            }
+-        }
++        item { DailyIntelligenceHero(state) }
+         item { SportChips(primarySports(state.filterOptions.sports), state.selectedSport, vm::selectSport) }
+         item {
+-            Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
+-                ModeTab("Today", state.todayMode == "today") { vm.setTodayMode("today") }
+-                ModeTab("Upcoming", state.todayMode == "upcoming") { vm.setTodayMode("upcoming") }
++            Row(Modifier.fillMaxWidth().background(PrediqSurfaceLow, RoundedCornerShape(16.dp)).padding(4.dp)) {
++                TodaySegment("Today", state.todayMode == "today", Modifier.weight(1f)) { vm.setTodayMode("today") }
++                TodaySegment("Upcoming", state.todayMode == "upcoming", Modifier.weight(1f)) { vm.setTodayMode("upcoming") }
+             }
+         }
++
+         if (state.todayMode == "today" && state.picks.isNotEmpty()) {
+-            item { PrediqSectionTitle("PredIQ Picks of the Day") }
+-            items(state.picks.take(2), key = { "pick-${it.eventId}" }) { pick -> PickFeatureCard(pick) { if (state.account == null) onAuth() else onMatch(pick.eventId) } }
++            item {
++                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
++                    Text("Highest-conviction calls", style = MaterialTheme.typography.titleLarge)
++                    Text("PredIQ only promotes calls that clear its evidence and confidence gates.", color = PrediqMuted, style = MaterialTheme.typography.bodySmall)
++                }
++            }
++            items(state.picks.take(2), key = { "pick-${it.eventId}" }) { pick ->
++                PickFeatureCard(pick) { if (state.account == null) onAuth() else onMatch(pick.eventId) }
++            }
+         }
++
+         item {
+-            PrediqCard(Modifier.fillMaxWidth(), onLeagueWinners) {
+-                Row(verticalAlignment = Alignment.CenterVertically) {
+-                    Box(Modifier.size(44.dp).background(Color(0xFFEAF0FF), CircleShape), contentAlignment = Alignment.Center) { Icon(Icons.Outlined.EmojiEvents, null, tint = PrediqBlue) }
+-                    Spacer(Modifier.width(14.dp))
+-                    Column(Modifier.weight(1f)) { Text("League Winner Predictions", style = MaterialTheme.typography.titleLarge); Text("Competition-specific title probabilities from PredIQ", color = PrediqMuted) }
+-                    Icon(Icons.Outlined.ChevronRight, null, tint = PrediqMuted)
++            Card(
++                modifier = Modifier.fillMaxWidth().clickable(onClick = onLeagueWinners),
++                colors = CardDefaults.cardColors(containerColor = Color(0xFFEAF0FF)),
++                shape = RoundedCornerShape(20.dp),
++            ) {
++                Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
++                    Box(Modifier.size(46.dp).background(Color.White, RoundedCornerShape(14.dp)), contentAlignment = Alignment.Center) { Icon(Icons.Outlined.EmojiEvents, null, tint = PrediqBlue) }
++                    Spacer(Modifier.width(13.dp))
++                    Column(Modifier.weight(1f)) {
++                        Text("League intelligence", style = MaterialTheme.typography.titleMedium, color = PrediqBlue, fontWeight = FontWeight.Bold)
++                        Text("Title probabilities and competition-specific context", color = Color(0xFF53657A), style = MaterialTheme.typography.bodySmall)
++                    }
++                    Icon(Icons.Outlined.ChevronRight, null, tint = PrediqBlue)
+                 }
+             }
+         }
+-        item { PrediqSectionTitle(if (state.todayMode == "upcoming") "Upcoming Intelligence" else "Trending Signals") }
++
++        item {
++            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
++                Text(if (state.todayMode == "upcoming") "Upcoming intelligence" else "More assessed opportunities", style = MaterialTheme.typography.titleLarge)
++                Text("Ranked by promotion status, confidence and model probability—not by fixture popularity.", color = PrediqMuted, style = MaterialTheme.typography.bodySmall)
++            }
++        }
+         when {
+-            state.loadingToday -> item { StateCard("Analysing current games…", "PredIQ is combining the latest match and competition context.") }
++            state.loadingToday -> item { StateCard("Analysing current games…", "PredIQ is combining the latest match, competition, market and team context.") }
+             state.todayError != null -> item { StateCard("Could not refresh intelligence", state.todayError, error = true, action = "Retry", onAction = vm::loadToday) }
+-            !vm.fullAccess -> item { StateCard("Full analysis is locked", "Start a trial or activate a plan to open PredIQ.", action = if (state.account == null) "Start trial" else "View Account", onAction = onAuth) }
+-            state.assessments.isEmpty() -> item { StateCard("No strong assessment in this view", "PredIQ will not fill the list with weak or unrelated picks. Try another sport or check Upcoming.") }
