@@ -10,28 +10,38 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 
-val PrediqBlue = Color(0xFF0050CB)
-val PrediqBlueBright = Color(0xFF0066FF)
-val PrediqGreen = Color(0xFF006E2A)
-val PrediqGreenSoft = Color(0xFF5CFD80)
-val PrediqRed = Color(0xFFBA1A1A)
-val PrediqAmber = Color(0xFFA33200)
-val PrediqBackground = Color(0xFFF9F9FC)
-val PrediqSurfaceLow = Color(0xFFF3F3F6)
+val PrediqBlue = Color(0xFF134B70)
+val PrediqBlueBright = Color(0xFF1C6C96)
+val PrediqGreen = Color(0xFF087443)
+val PrediqGreenSoft = Color(0xFFB8F7CE)
+val PrediqRed = Color(0xFFC53B3B)
+val PrediqAmber = Color(0xFFB86418)
+val PrediqBackground = Color(0xFFF5F7F5)
+val PrediqSurfaceLow = Color(0xFFEEF1EE)
 val PrediqSurface = Color(0xFFFFFFFF)
-val PrediqOutline = Color(0xFFC2C6D8)
-val PrediqText = Color(0xFF1A1C1E)
-val PrediqMuted = Color(0xFF424656)
+val PrediqOutline = Color(0xFFCAD0CA)
+val PrediqText = Color(0xFF141814)
+val PrediqMuted = Color(0xFF5A625B)
+
+// Live surfaces deliberately carry more visual weight than the rest of the app.
+// They echo the premium sports-reference direction without sacrificing Material 3
+// accessibility or the existing PredIQ information architecture.
+val PrediqLiveInk = Color(0xFF0D130B)
+val PrediqLiveCard = Color(0xFF171E15)
+val PrediqLiveCardAlt = Color(0xFF222A20)
+val PrediqLiveLime = Color(0xFFB7FF18)
+val PrediqLiveMuted = Color(0xFFB8C1B4)
+val PrediqLiveOutline = Color(0xFF354032)
 
 private val scheme = lightColorScheme(
     primary = PrediqBlue,
     onPrimary = Color.White,
-    primaryContainer = PrediqBlueBright,
-    onPrimaryContainer = Color.White,
+    primaryContainer = Color(0xFFD9EAF3),
+    onPrimaryContainer = Color(0xFF12364B),
     secondary = PrediqGreen,
     onSecondary = Color.White,
     secondaryContainer = PrediqGreenSoft,
-    onSecondaryContainer = Color(0xFF00732C),
+    onSecondaryContainer = Color(0xFF0B4A2D),
     tertiary = PrediqAmber,
     error = PrediqRed,
     background = PrediqBackground,
@@ -44,13 +54,13 @@ private val scheme = lightColorScheme(
 )
 
 private val type = Typography(
-    displayLarge = TextStyle(fontFamily = FontFamily.SansSerif, fontWeight = FontWeight.Bold, fontSize = 40.sp, lineHeight = 48.sp, letterSpacing = (-0.8).sp),
-    headlineLarge = TextStyle(fontFamily = FontFamily.SansSerif, fontWeight = FontWeight.Bold, fontSize = 32.sp, lineHeight = 40.sp),
-    headlineMedium = TextStyle(fontFamily = FontFamily.SansSerif, fontWeight = FontWeight.Bold, fontSize = 24.sp, lineHeight = 32.sp),
-    titleLarge = TextStyle(fontFamily = FontFamily.SansSerif, fontWeight = FontWeight.SemiBold, fontSize = 20.sp, lineHeight = 28.sp),
-    bodyLarge = TextStyle(fontFamily = FontFamily.SansSerif, fontWeight = FontWeight.Normal, fontSize = 18.sp, lineHeight = 28.sp),
-    bodyMedium = TextStyle(fontFamily = FontFamily.SansSerif, fontWeight = FontWeight.Normal, fontSize = 16.sp, lineHeight = 24.sp),
-    labelLarge = TextStyle(fontFamily = FontFamily.SansSerif, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, lineHeight = 20.sp, letterSpacing = 0.7.sp),
+    displayLarge = TextStyle(fontFamily = FontFamily.SansSerif, fontWeight = FontWeight.Bold, fontSize = 40.sp, lineHeight = 46.sp, letterSpacing = (-0.9).sp),
+    headlineLarge = TextStyle(fontFamily = FontFamily.SansSerif, fontWeight = FontWeight.Bold, fontSize = 32.sp, lineHeight = 38.sp, letterSpacing = (-0.5).sp),
+    headlineMedium = TextStyle(fontFamily = FontFamily.SansSerif, fontWeight = FontWeight.Bold, fontSize = 25.sp, lineHeight = 31.sp, letterSpacing = (-0.25).sp),
+    titleLarge = TextStyle(fontFamily = FontFamily.SansSerif, fontWeight = FontWeight.SemiBold, fontSize = 20.sp, lineHeight = 26.sp),
+    bodyLarge = TextStyle(fontFamily = FontFamily.SansSerif, fontWeight = FontWeight.Normal, fontSize = 17.sp, lineHeight = 26.sp),
+    bodyMedium = TextStyle(fontFamily = FontFamily.SansSerif, fontWeight = FontWeight.Normal, fontSize = 15.sp, lineHeight = 22.sp),
+    labelLarge = TextStyle(fontFamily = FontFamily.SansSerif, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, lineHeight = 18.sp, letterSpacing = 0.55.sp),
 )
 
 @Composable
