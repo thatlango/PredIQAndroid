@@ -6,7 +6,6 @@ import com.getprediq.app.data.SessionStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
-import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonObject
@@ -37,18 +36,9 @@ class V2Api(private val session: SessionStore) {
     private val v1Base = BuildConfig.PREDIQ_API_BASE_URL
     private val v2Base = BuildConfig.PREDIQ_API_BASE_URL.replace("/api/v1/", "/api/v2/")
 
-    private suspend fun raw(
-        path: String,
-        method: String = "GET",
-        body: String? = null,
-        retry: Boolean = true,
-    ): String = withContext(Dispatchers.IO) {
-        val requestBuilder = Request.Builder()
-            .url(v2Base + path.trimStart('/'))
-            .header("Accept", "application/json")
-        session.accessToken.first()?.takeIf { it.isNotBlank() }?.let {
-            requestBuilder.header("Authorization", "Bearer $it")
-        }
+    private suspend fun raw(path: String, method: String = "GET", body: String? = null, retry: Boolean = true): String = withContext(Dispatchers.IO) {
+        val requestBuilder = Request.Builder().url(v2Base + path.trimStart('/')).header("Accept", "application/json")
+        session.accessToken.first()?.takeIf { it.isNotBlank() }?.let { requestBuilder.header("Authorization", "Bearer $it") }
         val requestBody = (body ?: "{}").toRequestBody(mediaType)
         when (method) {
             "POST" -> requestBuilder.post(requestBody)
@@ -95,29 +85,13 @@ class V2Api(private val session: SessionStore) {
         return json.decodeFromString(raw("live$q"))
     }
 
-    suspend fun prediction(decisionRef: String): V2PredictionDetail =
-        json.decodeFromString(raw("predictions/${enc(decisionRef)}"))
+    suspend fun prediction(decisionRef: String): V2PredictionDetail = json.decodeFromString(raw("predictions/${enc(decisionRef)}"))
+    suspend fun resultsSummary(periodDays: Int = 30): V2ResultsSummary = json.decodeFromString(raw("results/summary?period_days=${periodDays.coerceIn(1, 3650)}"))
 
-    suspend fun resultsSummary(periodDays: Int = 30): V2ResultsSummary =
-        json.decodeFromString(raw("results/summary?period_days=${periodDays.coerceIn(1, 3650)}"))
-
-    suspend fun results(
-        periodDays: Int = 30,
-        sport: String? = null,
-        competition: String? = null,
-        market: String? = null,
-        outcome: String? = null,
-        limit: Int = 50,
-        before: String? = null,
-    ): V2ResultsFeed {
+    suspend fun results(periodDays: Int = 30, sport: String? = null, competition: String? = null, market: String? = null, outcome: String? = null, limit: Int = 50, before: String? = null): V2ResultsFeed {
         val q = queryOf(
-            "period_days" to periodDays.coerceIn(1, 3650).toString(),
-            "sport" to sport,
-            "competition" to competition,
-            "market" to market,
-            "outcome" to outcome,
-            "limit" to limit.coerceIn(1, 100).toString(),
-            "before" to before,
+            "period_days" to periodDays.coerceIn(1, 3650).toString(), "sport" to sport, "competition" to competition,
+            "market" to market, "outcome" to outcome, "limit" to limit.coerceIn(1, 100).toString(), "before" to before,
         )
         return json.decodeFromString(raw("results$q"))
     }
@@ -134,17 +108,11 @@ class V2Api(private val session: SessionStore) {
 
     suspend fun saveNotifications(settings: V2NotificationSettings): V2NotificationSettings {
         val body = buildJsonObject {
-            put("push_enabled", settings.pushEnabled)
-            put("email_enabled", settings.emailEnabled)
-            put("sms_enabled", settings.smsEnabled)
-            put("whatsapp_enabled", settings.whatsappEnabled)
-            put("timezone", settings.timezone)
+            put("push_enabled", settings.pushEnabled); put("email_enabled", settings.emailEnabled); put("sms_enabled", settings.smsEnabled)
+            put("whatsapp_enabled", settings.whatsappEnabled); put("timezone", settings.timezone)
             put("alerts", buildJsonObject {
-                put("daily_picks", settings.alerts.dailyPicks)
-                put("live_changes", settings.alerts.liveChanges)
-                put("lineup_changes", settings.alerts.lineupChanges)
-                put("results", settings.alerts.results)
-                put("subscription", settings.alerts.subscription)
+                put("daily_picks", settings.alerts.dailyPicks); put("live_changes", settings.alerts.liveChanges)
+                put("lineup_changes", settings.alerts.lineupChanges); put("results", settings.alerts.results); put("subscription", settings.alerts.subscription)
             })
         }.toString()
         return json.decodeFromString(raw("me/notifications", "PUT", body))
@@ -152,31 +120,23 @@ class V2Api(private val session: SessionStore) {
 
     suspend fun follow(entityType: String, entityKey: String, label: String?, alerts: V2FollowAlerts = V2FollowAlerts()): V2Follow {
         val body = buildJsonObject {
-            put("entity_type", entityType)
-            put("entity_key", entityKey)
-            label?.let { put("entity_label", it) }
+            put("entity_type", entityType); put("entity_key", entityKey); label?.let { put("entity_label", it) }
             put("alerts", buildJsonObject {
-                put("prediction_changes", alerts.predictionChanges)
-                put("lineup", alerts.lineup)
-                put("live", alerts.live)
-                put("result", alerts.result)
-                put("team_news", alerts.teamNews)
+                put("prediction_changes", alerts.predictionChanges); put("lineup", alerts.lineup); put("live", alerts.live)
+                put("result", alerts.result); put("team_news", alerts.teamNews)
             })
         }.toString()
-        return json.decodeFromString(raw("follows", "POST", body))
+        return json.decodeFromString<V2FollowMutationResponse>(raw("follows", "POST", body)).follow
     }
 
     suspend fun updateFollow(id: String, alerts: V2FollowAlerts): V2Follow {
         val body = buildJsonObject {
             put("alerts", buildJsonObject {
-                put("prediction_changes", alerts.predictionChanges)
-                put("lineup", alerts.lineup)
-                put("live", alerts.live)
-                put("result", alerts.result)
-                put("team_news", alerts.teamNews)
+                put("prediction_changes", alerts.predictionChanges); put("lineup", alerts.lineup); put("live", alerts.live)
+                put("result", alerts.result); put("team_news", alerts.teamNews)
             })
         }.toString()
-        return json.decodeFromString(raw("follows/${enc(id)}", "PATCH", body))
+        return json.decodeFromString<V2FollowMutationResponse>(raw("follows/${enc(id)}", "PATCH", body)).follow
     }
 
     suspend fun unfollow(id: String) { raw("follows/${enc(id)}", "DELETE") }
