@@ -17,7 +17,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         authCallback = intent?.data
         enableEdgeToEdge()
-        setContent { PrediqTheme { PrediqAppV2(authCallback) { authCallback = null } } }
+        setContent { PrediqTheme { PrediqContractApp(authCallback) { authCallback = null } } }
     }
 
     override fun onNewIntent(intent: Intent) {
