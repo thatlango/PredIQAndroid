@@ -18,8 +18,24 @@ android {
         buildConfigField("String", "PREDIQ_API_BASE_URL", "\"https://api.getprediq.site/api/v1/\"")
     }
 
+    signingConfigs {
+        create("release") {
+            val path = System.getenv("PREDIQ_ANDROID_KEYSTORE_FILE")
+            val storePass = System.getenv("PREDIQ_ANDROID_KEYSTORE_PASSWORD")
+            val alias = System.getenv("PREDIQ_ANDROID_KEY_ALIAS")
+            val keyPass = System.getenv("PREDIQ_ANDROID_KEY_PASSWORD")
+            if (!path.isNullOrBlank()) storeFile = file(path)
+            if (!storePass.isNullOrBlank()) storePassword = storePass
+            if (!alias.isNullOrBlank()) keyAlias = alias
+            if (!keyPass.isNullOrBlank()) keyPassword = keyPass
+        }
+    }
+
     buildTypes {
         release {
+            val cfg = signingConfigs.getByName("release")
+            val signingReady = cfg.storeFile != null && !cfg.storePassword.isNullOrBlank() && !cfg.keyAlias.isNullOrBlank() && !cfg.keyPassword.isNullOrBlank()
+            if (signingReady) signingConfig = cfg
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
