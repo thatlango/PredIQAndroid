@@ -1,0 +1,69 @@
++                        Spacer(Modifier.height(8.dp))
++                        Text(compactTeamName(event.awayParticipant, event.sportCode), style = MaterialTheme.typography.titleMedium, textAlign = TextAlign.Center, fontWeight = FontWeight.SemiBold)
++                    }
++                }
+             }
+         }
+         item {
+-            PrediqCard(Modifier.fillMaxWidth()) {
+-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Top) { Column(Modifier.weight(1f)) { Text("PredIQ Prediction", color = PrediqBlue, style = MaterialTheme.typography.labelLarge); Text(assessment.selectionLabel ?: "Current assessment", style = MaterialTheme.typography.headlineMedium) }; StatusPill("${probability(assessment.confidence)} HIGH", PrediqGreen, Color(0xFFE9F8EF)) }
+-                ConfidenceBar(assessment.probability, "Probability")
+-                if (assessment.why.isNotEmpty()) { Text("THE WHY", style = MaterialTheme.typography.labelLarge, color = PrediqMuted); IndicatorList(assessment.why) }
+-                assessment.changeReason?.let { Surface(color = Color(0xFFEEF3FF), shape = RoundedCornerShape(12.dp)) { Text(it, Modifier.padding(12.dp), color = PrediqBlue) } }
++            Card(colors = CardDefaults.cardColors(containerColor = PrediqLiveInk), shape = RoundedCornerShape(26.dp), modifier = Modifier.fillMaxWidth()) {
++                Column(Modifier.padding(19.dp), verticalArrangement = Arrangement.spacedBy(15.dp)) {
++                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Top) {
++                        Column(Modifier.weight(1f)) {
++                            Text("CURRENT PREDIQ CALL", color = PrediqLiveLime, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
++                            Text(assessment.selectionLabel ?: "Current assessment", style = MaterialTheme.typography.headlineSmall, color = Color.White, fontWeight = FontWeight.Bold)
++                            Text(marketName(assessment.marketKey), color = PrediqLiveMuted, style = MaterialTheme.typography.bodySmall)
++                        }
++                        StatusPill(confidenceBand(assessment.confidence), PrediqLiveInk, PrediqLiveLime)
++                    }
++                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(9.dp)) {
++                        MatchMetric("PROBABILITY", probability(assessment.probability), Color.White, Modifier.weight(1f))
++                        MatchMetric("CONFIDENCE", probability(assessment.confidence), PrediqLiveLime, Modifier.weight(1f))
++                        MatchMetric("RISK", riskLabel, if (riskColor == PrediqRed) Color(0xFFFFA8A2) else Color(0xFFFFD08A), Modifier.weight(1f))
++                    }
++                    Text("Probability is the model's estimated chance. Confidence reflects how strongly the available evidence supports publishing this call.", color = PrediqLiveMuted, style = MaterialTheme.typography.labelSmall)
++                }
++            }
++        }
++        if (assessment.why.isNotEmpty()) {
++            item {
++                PrediqCard(Modifier.fillMaxWidth()) {
++                    Text("Why PredIQ sees it", style = MaterialTheme.typography.titleMedium)
++                    IndicatorList(assessment.why.take(5))
++                }
+             }
+         }
++        if (assessment.watchOuts.isNotEmpty()) {
++            item { InsightCard(Icons.Outlined.WarningAmber, "What can break the call", assessment.watchOuts.joinToString(" • "), PrediqAmber) }
++        }
++        assessment.changeReason?.let { reason -> item { InsightCard(Icons.Outlined.Update, "What changed", reason, PrediqBlue) } }
++        if (data.assessmentHistory.size > 1) {
++            item { InsightCard(Icons.Outlined.History, "Re-analysis history", "PredIQ has recorded ${data.assessmentHistory.size} assessment snapshots for this event. The current call reflects the latest available evidence.", PrediqBlue) }
++        }
+         item {
+             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                 FormCard(event.homeParticipant, formString(data.teamForm, "home"), Modifier.weight(1f))
+                 FormCard(event.awayParticipant, formString(data.teamForm, "away"), Modifier.weight(1f))
+             }
+         }
+-        data.marketSignal?.let { signal -> item { InsightCard(Icons.Outlined.TrendingUp, "Market Signal", marketSignalText(signal), PrediqBlue) } }
+-        if (assessment.watchOuts.isNotEmpty()) item { InsightCard(Icons.Outlined.WarningAmber, "Watch Out For", assessment.watchOuts.joinToString(" • "), PrediqAmber) }
+-        item { InsightCard(Icons.Outlined.Analytics, "PredIQ History in ${event.competition ?: "this competition"}", if (data.prediqHistory.accuracy == null) "Not enough graded history yet" else "${probability(data.prediqHistory.accuracy)} accuracy across ${data.prediqHistory.graded} graded predictions", PrediqBlue) }
+-        item { InsightCard(Icons.Outlined.Groups, "Lineups", if (data.lineups.confirmed) "Confirmed lineups are included in this assessment." else "Lineups are not yet confirmed; PredIQ will re-analyse when they arrive.", if (data.lineups.confirmed) PrediqGreen else PrediqMuted) }
++        data.marketSignal?.let { signal -> item { InsightCard(Icons.Outlined.TrendingUp, "Market signal", marketSignalText(signal), PrediqBlue) } }
++        data.leagueContext?.takeIf { it.isNotEmpty() }?.let { contextData ->
++            item { InsightCard(Icons.Outlined.Leaderboard, "Competition context", "This assessment includes ${contextData.keys.size} competition-level context dimension${if (contextData.keys.size == 1) "" else "s"} alongside match and team evidence.", PrediqBlue) }
++        }
++        item { InsightCard(Icons.Outlined.Analytics, "PredIQ history in ${event.competition ?: "this competition"}", if (data.prediqHistory.accuracy == null) "Not enough graded history yet to claim a reliable competition-specific accuracy rate." else "${probability(data.prediqHistory.accuracy)} accuracy across ${data.prediqHistory.graded} graded predictions.", PrediqBlue) }
++        item { InsightCard(Icons.Outlined.Groups, "Lineups", if (data.lineups.confirmed) "Confirmed lineups are included in this assessment." else "Lineups are not yet confirmed. PredIQ will re-analyse when they arrive.", if (data.lineups.confirmed) PrediqGreen else PrediqMuted) }
+         item { Text("Last analysed ${relativeTime(assessment.lastAnalysedAt)}", color = PrediqMuted, fontSize = 12.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth()) }
+     }
+ }
+ 
+ @Composable
++private fun MatchMetric(label: String, value: String, accent: Color, modifier: Modifier = Modifier) {
++    Surface(modifier = modifier, color = PrediqLiveCardAlt, shape = RoundedCornerShape(14.dp)) {
