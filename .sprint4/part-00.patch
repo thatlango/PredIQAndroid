@@ -1,0 +1,92 @@
+--- a/app/src/main/java/com/getprediq/app/ui/Components.kt
++++ b/app/src/main/java/com/getprediq/app/ui/Components.kt
+@@ -96,13 +96,18 @@
+ @Composable
+ fun ConfidenceBar(value: Double?, label: String = "Confidence") {
+     val progress = (value ?: 0.0).coerceIn(0.0, 1.0).toFloat()
++    val accent = when {
++        progress >= .75f -> PrediqGreen
++        progress >= .60f -> PrediqBlue
++        else -> PrediqAmber
++    }
+     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
++        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+             Text(label, style = MaterialTheme.typography.bodyMedium, color = PrediqMuted)
+-            Text(probability(value), style = MaterialTheme.typography.labelLarge, color = PrediqBlue)
++            Text(probability(value), style = MaterialTheme.typography.labelLarge, color = accent, fontWeight = FontWeight.Bold)
+         }
+         Box(Modifier.fillMaxWidth().height(7.dp).clip(CircleShape).background(Color(0xFFE2E6E2))) {
+-            Box(Modifier.fillMaxWidth(progress).fillMaxHeight().clip(CircleShape).background(PrediqBlue))
++            Box(Modifier.fillMaxWidth(progress).fillMaxHeight().clip(CircleShape).background(accent))
+         }
+     }
+ }
+@@ -149,43 +154,182 @@
+ 
+ @Composable
+ fun PickFeatureCard(pick: PickDto, onOpen: () -> Unit) {
+-    PrediqCard(Modifier.fillMaxWidth(), onOpen) {
+-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+-            Text("${pick.competition ?: prettySport(pick.sportCode)} • ${kickoff(pick.startsAt)}", style = MaterialTheme.typography.labelLarge, color = PrediqMuted)
+-            if (pick.status == "live") StatusPill("LIVE", PrediqGreen, Color(0xFFE9F8EF))
+-        }
+-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
+-            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1f)) { TeamBadge(pick.homeParticipant); Spacer(Modifier.height(6.dp)); Text(pick.homeParticipant, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+-            Text("VS", color = PrediqMuted, style = MaterialTheme.typography.labelLarge)
+-            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1f)) { TeamBadge(pick.awayParticipant); Spacer(Modifier.height(6.dp)); Text(pick.awayParticipant, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+-        }
+-        Surface(shape = RoundedCornerShape(16.dp), color = PrediqBackground) {
+-            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) { Text("PREDIQ", style = MaterialTheme.typography.labelLarge, color = PrediqMuted); Text(pick.selectionLabel ?: "Current assessment", style = MaterialTheme.typography.titleLarge, color = PrediqBlue) }
+-                ConfidenceBar(pick.confidence ?: pick.probability)
++    val callProbability = pick.probability
++    val callConfidence = pick.confidence ?: pick.probability
++    Card(
++        modifier = Modifier.fillMaxWidth().clickable(onClick = onOpen),
++        shape = RoundedCornerShape(26.dp),
++        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
++        border = BorderStroke(1.dp, Color(0xFFDDE5E8)),
++    ) {
++        Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
++            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
++                Row(verticalAlignment = Alignment.CenterVertically) {
++                    CompetitionMark(pick.competition, pick.sportCode, 28.dp)
++                    if (!pick.competition.isNullOrBlank()) Spacer(Modifier.width(8.dp))
++                    Column {
++                        Text("HIGH-CONVICTION CALL", style = MaterialTheme.typography.labelSmall, color = PrediqBlue, fontWeight = FontWeight.Bold)
++                        Text("${pick.competition ?: prettySport(pick.sportCode)} • ${kickoff(pick.startsAt)}", style = MaterialTheme.typography.labelMedium, color = PrediqMuted)
++                    }
++                }
++                if (pick.status == "live") StatusPill("LIVE", PrediqLiveInk, PrediqLiveLime)
++            }
++
++            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
++                Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1f)) {
++                    TeamCrest(pick.homeParticipant, pick.sportCode, 58.dp)
++                    Spacer(Modifier.height(7.dp))
++                    Text(compactTeamName(pick.homeParticipant, pick.sportCode), maxLines = 1, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.SemiBold)
++                }
++                Text("VS", color = PrediqMuted, style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(horizontal = 10.dp))
++                Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1f)) {
++                    TeamCrest(pick.awayParticipant, pick.sportCode, 58.dp)
++                    Spacer(Modifier.height(7.dp))
++                    Text(compactTeamName(pick.awayParticipant, pick.sportCode), maxLines = 1, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.SemiBold)
++                }
++            }
++
++            Surface(shape = RoundedCornerShape(20.dp), color = PrediqLiveInk) {
++                Column(Modifier.padding(17.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
++                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Bottom) {
++                        Column(Modifier.weight(1f)) {
++                            Text("PREDIQ CALL", color = PrediqLiveMuted, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
++                            Text(pick.selectionLabel ?: "Current assessment", style = MaterialTheme.typography.titleLarge, color = Color.White)
++                            Text(marketName(pick.marketKey), color = PrediqLiveMuted, style = MaterialTheme.typography.bodySmall)
++                        }
++                        Column(horizontalAlignment = Alignment.End) {
++                            Text(probability(callProbability), style = MaterialTheme.typography.headlineMedium, color = PrediqLiveLime, fontWeight = FontWeight.Bold)
++                            Text("model probability", color = PrediqLiveMuted, style = MaterialTheme.typography.labelSmall)
++                        }
++                    }
++                    ConfidenceBarDark(callConfidence)
++                }
