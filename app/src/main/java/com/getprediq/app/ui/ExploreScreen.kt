@@ -8,10 +8,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.CompareArrows
-import androidx.compose.material.icons.outlined.Groups
-import androidx.compose.material.icons.outlined.PersonSearch
-import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -73,6 +70,7 @@ fun ExploreScreen(state: PrediqUiState, vm: PrediqViewModel) {
                 if (state.teams.isEmpty()) vm.loadTeams(sport, state.selectedCompetition)
                 if (state.leagueProfiles.isEmpty()) vm.loadLeagueProfiles(sport)
             }
+            "leagues" -> if (state.leagueProfiles.isEmpty()) vm.loadLeagueProfiles(sport)
         }
     }
 
@@ -85,15 +83,11 @@ fun ExploreScreen(state: PrediqUiState, vm: PrediqViewModel) {
         contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 100.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        item {
-            Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                Text("Explore", style = MaterialTheme.typography.headlineMedium)
-                Text("Team, player and squad evidence behind PredIQ decisions.", color = PrediqMuted)
-            }
-        }
+        item { ExploreCoverageHero(state, sport) }
         item {
             Row(Modifier.fillMaxWidth().background(PrediqSurfaceLow, RoundedCornerShape(14.dp)).padding(4.dp)) {
                 ExploreSegment("Teams", mode == "teams", Modifier.weight(1f)) { mode = "teams" }
+                ExploreSegment("Leagues", mode == "leagues", Modifier.weight(1f)) { mode = "leagues" }
                 ExploreSegment("Players", mode == "players", Modifier.weight(1f)) { mode = "players" }
                 ExploreSegment("Squad", mode == "squad", Modifier.weight(1f)) { mode = "squad" }
             }
@@ -161,16 +155,34 @@ fun ExploreScreen(state: PrediqUiState, vm: PrediqViewModel) {
                             shape = RoundedCornerShape(18.dp),
                             elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
                         ) {
-                            Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                            Row(Modifier.fillMaxWidth().padding(15.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                                TeamCrest(team.teamName, team.sportCode, 44.dp)
+                                Spacer(Modifier.width(12.dp))
                                 Column(Modifier.weight(1f)) {
                                     Text(team.teamName, fontWeight = FontWeight.SemiBold)
                                     Text("${team.matchesCount} matches observed", color = PrediqMuted, style = MaterialTheme.typography.bodySmall)
                                 }
-                                Text(profileHeadline(team.profile), color = PrediqBlue, style = MaterialTheme.typography.labelMedium)
+                                Column(horizontalAlignment = Alignment.End) {
+                                    Text(profileHeadline(team.profile), color = PrediqBlue, style = MaterialTheme.typography.labelMedium)
+                                    Icon(Icons.Outlined.ChevronRight, null, tint = PrediqMuted, modifier = Modifier.size(18.dp))
+                                }
                             }
                         }
                     }
                 }
+            }
+
+            "leagues" -> {
+                item {
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text("League intelligence", style = MaterialTheme.typography.titleLarge)
+                        Text("Competition-level evidence separated from individual fixture calls.", color = PrediqMuted, style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+                state.exploreError?.let { error -> item { StateCard("League intelligence could not refresh", error, error = true, action = "Retry", onAction = { vm.loadLeagueProfiles(sport) }) } }
+                if (state.exploreBusy && state.leagueProfiles.isEmpty()) item { StateCard("Loading league intelligence…", "PredIQ is resolving competition-level observations and coverage.") }
+                if (!state.exploreBusy && state.leagueProfiles.isEmpty()) item { StateCard("No league profile yet", "PredIQ needs enough observed competition evidence before it publishes a league intelligence profile.") }
+                items(state.leagueProfiles, key = { "${it.sportCode}-${it.competition}-${it.season}" }) { league -> LeagueIntelligenceCard(league) }
             }
 
             "players" -> {
@@ -192,7 +204,9 @@ fun ExploreScreen(state: PrediqUiState, vm: PrediqViewModel) {
                             shape = RoundedCornerShape(18.dp),
                             elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
                         ) {
-                            Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                            Row(Modifier.fillMaxWidth().padding(15.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                                PlayerHeadshot(player.name, player.sportCode, 44.dp)
+                                Spacer(Modifier.width(12.dp))
                                 Column(Modifier.weight(1f)) { Text(player.name, fontWeight = FontWeight.SemiBold); Text(listOfNotNull(player.position, player.nationality).joinToString(" · ").ifBlank { player.sportCode.replaceFirstChar(Char::uppercase) }, color = PrediqMuted, style = MaterialTheme.typography.bodySmall) }
                                 Column(horizontalAlignment = Alignment.End) { player.headline?.let { Text(it, color = PrediqBlue, fontWeight = FontWeight.SemiBold) }; Text("${player.statRows} signals", color = PrediqMuted, style = MaterialTheme.typography.labelSmall) }
                             }
@@ -212,6 +226,64 @@ fun ExploreScreen(state: PrediqUiState, vm: PrediqViewModel) {
                 if (state.exploreBusy && state.squadDepth == null) item { StateCard("Building squad view…", "PredIQ is checking observed player and lineup evidence.") }
                 state.squadDepth?.let { squad -> item { SquadDepthCard(squad) } }
             }
+        }
+    }
+}
+
+@Composable
+private fun ExploreCoverageHero(state: PrediqUiState, sport: String) {
+    Card(colors = CardDefaults.cardColors(containerColor = PrediqBlue), shape = RoundedCornerShape(26.dp), modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(19.dp), verticalArrangement = Arrangement.spacedBy(13.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Outlined.TravelExplore, null, tint = Color.White)
+                Spacer(Modifier.width(9.dp))
+                Column {
+                    Text("PREDIQ RESEARCH DESK", color = Color.White.copy(alpha = .75f), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                    Text("Explore the evidence layer", color = Color.White, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                }
+            }
+            Text("Move from a call to the teams, leagues, players and squad evidence underneath it.", color = Color.White.copy(alpha = .88f), style = MaterialTheme.typography.bodyMedium)
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                ExploreCount("TEAMS", state.teams.size.toString(), Modifier.weight(1f))
+                ExploreCount("LEAGUES", state.leagueProfiles.size.toString(), Modifier.weight(1f))
+                ExploreCount("PLAYERS", state.players.size.toString(), Modifier.weight(1f))
+            }
+            Text(prettySport(sport), color = Color.White.copy(alpha = .68f), style = MaterialTheme.typography.labelSmall)
+        }
+    }
+}
+
+@Composable
+private fun ExploreCount(label: String, value: String, modifier: Modifier) {
+    Surface(modifier, color = Color.White.copy(alpha = .12f), shape = RoundedCornerShape(13.dp)) {
+        Column(Modifier.padding(10.dp)) {
+            Text(label, color = Color.White.copy(alpha = .68f), style = MaterialTheme.typography.labelSmall)
+            Text(value, color = Color.White, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+        }
+    }
+}
+
+@Composable
+private fun LeagueIntelligenceCard(league: com.getprediq.app.data.LeagueIntelligenceSummary) {
+    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface), shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(11.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                CompetitionMark(league.competition, league.sportCode, 42.dp)
+                Spacer(Modifier.width(12.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(league.competition, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+                    Text(listOfNotNull(league.season, "${league.matchesCount} matches observed").joinToString(" · "), color = PrediqMuted, style = MaterialTheme.typography.bodySmall)
+                }
+                Icon(Icons.Outlined.Leaderboard, null, tint = PrediqBlue)
+            }
+            val winRate = metric(league.profile, "home_win_rate") ?: metric(league.profile, "win_rate")
+            val goals = metric(league.profile, "goals_per_match") ?: metric(league.profile, "goals_for_per_match")
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                TeamMetric("Coverage", league.matchesCount.toString(), Modifier.weight(1f))
+                TeamMetric("Win signal", winRate?.let(::formatRate) ?: "—", Modifier.weight(1f))
+                TeamMetric("Goals / match", goals?.let { "%.2f".format(it) } ?: "—", Modifier.weight(1f))
+            }
+            league.asOf?.let { Text("Updated ${it.take(10)} · evidence profile, not a guarantee", color = PrediqMuted, style = MaterialTheme.typography.labelSmall) }
         }
     }
 }
@@ -264,8 +336,11 @@ private fun ComparisonColumn(team: TeamIntelligenceSummary, modifier: Modifier =
 private fun TeamIntelligenceCard(team: TeamIntelligenceSummary) {
     Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface), shape = RoundedCornerShape(22.dp)) {
         Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text("TEAM INTELLIGENCE", color = PrediqBlue, style = MaterialTheme.typography.labelSmall)
-            Text(team.teamName, style = MaterialTheme.typography.headlineSmall)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                TeamCrest(team.teamName, team.sportCode, 52.dp)
+                Spacer(Modifier.width(12.dp))
+                Column { Text("TEAM INTELLIGENCE", color = PrediqBlue, style = MaterialTheme.typography.labelSmall); Text(team.teamName, style = MaterialTheme.typography.headlineSmall) }
+            }
             Text("${team.matchesCount} matches observed${team.asOf?.let { " · updated ${it.take(10)}" } ?: ""}", color = PrediqMuted)
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 TeamMetric("Win rate", metric(team.profile, "win_rate")?.let(::formatRate) ?: "—", Modifier.weight(1f))
@@ -293,7 +368,7 @@ private fun PlayerIntelligenceCard(player: PlayerDetail) {
     Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface), shape = RoundedCornerShape(22.dp)) {
         Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Top) {
-                Column(Modifier.weight(1f)) { Text("PLAYER", color = PrediqBlue, style = MaterialTheme.typography.labelSmall); Text(player.name, style = MaterialTheme.typography.headlineSmall); Text(listOfNotNull(player.position, player.primaryTeam, player.nationality, player.age?.let { "Age $it" }).joinToString(" · "), color = PrediqMuted) }
+                Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) { PlayerHeadshot(player.name, player.sportCode, 58.dp); Spacer(Modifier.width(12.dp)); Column { Text("PLAYER", color = PrediqBlue, style = MaterialTheme.typography.labelSmall); Text(player.name, style = MaterialTheme.typography.headlineSmall); Text(listOfNotNull(player.position, player.primaryTeam, player.nationality, player.age?.let { "Age $it" }).joinToString(" · "), color = PrediqMuted) } }
                 Surface(color = PrediqBlue, shape = RoundedCornerShape(16.dp)) { Column(Modifier.padding(horizontal = 14.dp, vertical = 10.dp), horizontalAlignment = Alignment.End) { Text("PERFORMANCE", color = Color.White.copy(alpha=.8f), style = MaterialTheme.typography.labelSmall); Text("${player.performanceIndex}", color = Color.White, style = MaterialTheme.typography.headlineMedium); Text("Coverage ${player.coverageScore}%", color = Color.White.copy(alpha=.8f), style = MaterialTheme.typography.labelSmall) } }
             }
             if (player.signals.isNotEmpty()) { player.signals.take(5).forEach { Text("• $it", style = MaterialTheme.typography.bodyMedium) } }
