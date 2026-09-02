@@ -1,0 +1,107 @@
++                        Text(it, color = PrediqBlue, style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
++                    }
++                }
++            }
++            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
++                Text("Full analysis", color = PrediqBlue, fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.labelMedium)
++                Icon(Icons.Outlined.ChevronRight, null, tint = PrediqBlue, modifier = Modifier.size(18.dp))
++            }
++        }
++    }
++}
++
++@Composable
++private fun CompactSignal(label: String, value: String, accent: Color, modifier: Modifier = Modifier) {
++    Surface(modifier = modifier, color = PrediqSurfaceLow, shape = RoundedCornerShape(12.dp)) {
++        Column(Modifier.padding(horizontal = 10.dp, vertical = 9.dp)) {
++            Text(label, color = PrediqMuted, style = MaterialTheme.typography.labelSmall, maxLines = 1)
++            Text(value, color = accent, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
++        }
++    }
++}
++
++@Composable
++private fun RiskNote(text: String) {
++    Surface(color = Color(0xFFFFF4E5), shape = RoundedCornerShape(12.dp)) {
++        Row(Modifier.fillMaxWidth().padding(11.dp), verticalAlignment = Alignment.Top) {
++            Icon(Icons.Outlined.WarningAmber, null, tint = PrediqAmber, modifier = Modifier.size(18.dp))
++            Spacer(Modifier.width(8.dp))
++            Text(text, color = Color(0xFF70521A), style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
+         }
+-        Text("${item.homeParticipant} vs ${item.awayParticipant}", style = MaterialTheme.typography.titleLarge)
+-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Bottom) {
+-            Column(Modifier.weight(1f)) { Text("PredIQ", style = MaterialTheme.typography.labelLarge, color = PrediqMuted); Text(item.selectionLabel ?: "Assessment", style = MaterialTheme.typography.titleLarge, color = PrediqBlue); Text(marketName(item.marketKey), color = PrediqMuted, style = MaterialTheme.typography.bodyMedium) }
+-            Text(probability(item.probability), style = MaterialTheme.typography.headlineMedium, color = PrediqGreen)
+-        }
+-        ConfidenceBar(item.confidence)
+-        if (item.why.isNotEmpty()) IndicatorList(item.why.take(3))
+-        item.changeReason?.let { Surface(color = Color(0xFFEEF3FF), shape = RoundedCornerShape(12.dp)) { Text(it, Modifier.padding(12.dp), color = PrediqBlue, style = MaterialTheme.typography.bodyMedium) } }
+-        Text("Analysed ${relativeTime(item.lastAnalysedAt)}", color = PrediqMuted, fontSize = 12.sp)
+     }
+ }
+ 
+@@ -197,7 +341,7 @@
+         colors = CardDefaults.cardColors(containerColor = PrediqLiveInk),
+         border = BorderStroke(1.dp, PrediqLiveOutline),
+     ) {
+-        Column(Modifier.padding(22.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
++        Column(Modifier.padding(22.dp), verticalArrangement = Arrangement.spacedBy(17.dp)) {
+             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                     Row(verticalAlignment = Alignment.CenterVertically) {
+@@ -205,7 +349,7 @@
+                         Spacer(Modifier.width(8.dp))
+                         Text("LIVE INTELLIGENCE", color = PrediqLiveLime, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
+                     }
+-                    Text("What matters now", color = Color.White, style = MaterialTheme.typography.headlineMedium)
++                    Text("What changed. What matters.", color = Color.White, style = MaterialTheme.typography.headlineMedium)
+                 }
+                 Surface(onClick = onRefresh, shape = CircleShape, color = PrediqLiveCardAlt) {
+                     Box(Modifier.size(48.dp), contentAlignment = Alignment.Center) {
+@@ -214,14 +358,18 @@
+                 }
+             }
+             Text(
+-                if (loading && live == null) "Scanning live fixtures and refreshing PredIQ signals…" else live?.message ?: "Scanning current fixtures for evidence-backed opportunities.",
++                if (loading && live == null) "Scanning live fixtures, score changes and current PredIQ signals…" else live?.message ?: "Scanning current fixtures for evidence-backed opportunities.",
+                 color = PrediqLiveMuted,
+                 style = MaterialTheme.typography.bodyMedium,
+             )
+             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                 LiveMetric("LIVE", (live?.liveCount ?: 0).toString(), Modifier.weight(1f))
+-                LiveMetric("WITH SIGNAL", (live?.predictedCount ?: 0).toString(), Modifier.weight(1f))
+-                LiveMetric("TOP", (live?.strongCount ?: 0).toString(), Modifier.weight(1f), highlight = true)
++                LiveMetric("ANALYSED", (live?.predictedCount ?: 0).toString(), Modifier.weight(1f))
++                LiveMetric("STRONG", (live?.strongCount ?: 0).toString(), Modifier.weight(1f), highlight = true)
++            }
++            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
++                Text("Source ${relativeTime(live?.lastSourceUpdate)}", color = PrediqLiveMuted, style = MaterialTheme.typography.labelSmall)
++                Text("Auto-refresh ~${live?.refreshSeconds ?: 300}s", color = PrediqLiveMuted, style = MaterialTheme.typography.labelSmall)
+             }
+         }
+     }
+@@ -243,12 +391,8 @@
+ }
+ 
+ @Composable
+-private fun LiveTeamBadge(name: String) {
+-    Surface(shape = CircleShape, color = PrediqLiveCardAlt, border = BorderStroke(1.dp, PrediqLiveOutline)) {
+-        Box(Modifier.size(52.dp), contentAlignment = Alignment.Center) {
+-            Text(teamInitials(name), color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+-        }
+-    }
++private fun LiveTeamBadge(name: String, sport: String) {
++    TeamCrest(name, sport, 54.dp, dark = true)
+ }
+ 
+ @Composable
+@@ -270,7 +414,7 @@
+ 
+             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                 Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1f)) {
+-                    LiveTeamBadge(game.homeParticipant)
++                    LiveTeamBadge(game.homeParticipant, game.sportCode)
+                     Spacer(Modifier.height(8.dp))
+                     Text(game.homeParticipant, color = Color.White, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                 }
+@@ -279,7 +423,7 @@
