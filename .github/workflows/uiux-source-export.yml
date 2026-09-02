@@ -1,0 +1,18 @@
+name: UIUX source export
+on:
+  push:
+    branches: [ uiux-sprint-4-intelligence-first ]
+permissions:
+  contents: read
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Package Android source
+        run: zip -qr prediq-source.zip app gradle build.gradle.kts settings.gradle.kts gradle.properties
+      - uses: actions/upload-artifact@v4
+        with:
+          name: prediq-source
+          path: prediq-source.zip
+          retention-days: 1
