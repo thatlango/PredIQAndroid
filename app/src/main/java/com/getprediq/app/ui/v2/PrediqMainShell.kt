@@ -15,6 +15,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.getprediq.app.PrediqContractViewModel
 import com.getprediq.app.PrediqViewModel
+import com.getprediq.app.data.MediaCatalogStore
 import com.getprediq.app.ui.v2.components.PrediqV2Scaffold
 import com.getprediq.app.ui.v2.components.V2NavigationItem
 import com.getprediq.app.ui.v2.theme.PrediqV2Theme
@@ -37,6 +38,10 @@ fun PrediqMainShell(authCallback: Uri? = null, onAuthCallbackConsumed: () -> Uni
         V2NavigationItem("me", "Me", Icons.Outlined.Person)
     )
 
+    LaunchedEffect(Unit) {
+        MediaCatalogStore.ensureLoaded()
+    }
+
     PrediqV2Theme {
         PrediqV2Scaffold(
             items = navItems,
@@ -51,19 +56,34 @@ fun PrediqMainShell(authCallback: Uri? = null, onAuthCallbackConsumed: () -> Uni
         ) { padding ->
             Box(Modifier.padding(padding)) {
                 NavHost(navController = nav, startDestination = "today") {
-                    composable("today") { PlaceholderScreen("Today") }
-                    composable("live") { PlaceholderScreen("Live") }
-                    composable("build") { PlaceholderScreen("Build") }
-                    composable("tickets") { PlaceholderScreen("Tickets") }
-                    composable("me") { PlaceholderScreen("Me") }
+                    composable("today") {
+                        TodayV2Screen(contractVm, onDecision = { ref ->
+                            contractVm.loadPrediction(ref)
+                            nav.navigate("prediction/$ref")
+                        })
+                    }
+                    composable("live") { LiveV2Screen(contractVm) }
+                    composable("build") { BuildV2Screen(contractVm) }
+                    composable("tickets") { TicketsV2Screen(contractVm) }
+                    composable("me") { AccountV2Screen(contractVm, authVm) }
+                    
+                    composable(
+                        "prediction/{ref}",
+                        arguments = listOf(androidx.navigation.navArgument("ref") { type = androidx.navigation.NavType.StringType })
+                    ) {
+                        PredictionDetailV2Screen(contractVm, onBack = { nav.popBackStack() })
+                    }
                 }
             }
         }
     }
 }
 
-@androidx.compose.ui.tooling.preview.Preview
 @Composable
-fun PreviewPrediqMainShell() {
-    PrediqMainShell()
+fun PlaceholderScreen(name: String) {
+    androidx.compose.material3.Text(
+        text = "$name Screen (UI V2)",
+        style = com.getprediq.app.ui.v2.theme.V2Typography.headlineMedium,
+        modifier = Modifier.padding(16.dp)
+    )
 }
