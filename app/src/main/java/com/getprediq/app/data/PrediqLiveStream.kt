@@ -4,6 +4,7 @@ import com.getprediq.app.BuildConfig
 import kotlinx.coroutines.flow.first
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonPrimitive
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -38,12 +39,10 @@ class PrediqLiveStream(
         .pingInterval(20, TimeUnit.SECONDS)
         .build()
     private var socket: WebSocket? = null
-    private var closedByClient = false
 
     suspend fun connect() {
         if (socket != null) return
         val token = session.accessToken.first()?.takeIf { it.isNotBlank() } ?: return
-        closedByClient = false
         val base = BuildConfig.PREDIQ_API_BASE_URL
             .replace("https://", "wss://")
             .replace("http://", "ws://")
@@ -74,7 +73,6 @@ class PrediqLiveStream(
     }
 
     fun close() {
-        closedByClient = true
         socket?.close(1000, "PredIQ screen closed")
         socket = null
         onConnectionChanged(false)
