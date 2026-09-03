@@ -13,13 +13,40 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.lifecycleScope
+import com.getprediq.app.data.PrediqLiveStream
+import com.getprediq.app.data.SessionStore
 import com.getprediq.app.ui.theme.PrediqTheme
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     private var authCallback by androidx.compose.runtime.mutableStateOf<Uri?>(null)
+    private lateinit var contractViewModel: PrediqContractViewModel
+    private lateinit var liveStream: PrediqLiveStream
+    private var liveStreamJob: Job? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        contractViewModel = ViewModelProvider(
+            this,
+            PrediqContractViewModel.factory(applicationContext),
+        )[PrediqContractViewModel::class.java]
+        liveStream = PrediqLiveStream(
+            SessionStore(applicationContext),
+            onEvent = { event ->
+                if (event.type in setOf("goal", "score_change", "status_change", "live_started", "analysis_updated")) {
+                    runOnUiThread {
+                        contractViewModel.loadLive()
+                        if (event.type == "analysis_updated") contractViewModel.loadToday()
+                    }
+                }
+            },
+            onConnectionChanged = {},
+        )
         consumeIntent(intent)
         requestNotificationPermissionIfNeeded()
         enableEdgeToEdge()
@@ -28,6 +55,24 @@ class MainActivity : ComponentActivity() {
             isAppearanceLightNavigationBars = false
         }
         setContent { PrediqTheme { PrediqContractApp(authCallback) { authCallback = null } } }
+    }
+
+    override fun onStart() {
+        super.onStart()
+        liveStreamJob?.cancel()
+        liveStreamJob = lifecycleScope.launch {
+            while (isActive) {
+                liveStream.connect()
+                delay(30_000)
+            }
+        }
+    }
+
+    override fun onStop() {
+        liveStreamJob?.cancel()
+        liveStreamJob = null
+        liveStream.close()
+        super.onStop()
     }
 
     override fun onNewIntent(intent: Intent) {
