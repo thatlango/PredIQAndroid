@@ -5,6 +5,13 @@ plugins {
     id("org.jetbrains.kotlin.plugin.serialization")
 }
 
+// Firebase configuration is supplied through the protected release path rather than source control.
+// Applying the plugin only when the config exists keeps ordinary CI/builds deterministic while
+// production builds process app/google-services.json into the resources used by FCM.
+if (file("google-services.json").exists()) {
+    pluginManager.apply("com.google.gms.google-services")
+}
+
 android {
     namespace = "com.getprediq.app"
     compileSdk = 35
