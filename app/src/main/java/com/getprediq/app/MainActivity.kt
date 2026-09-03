@@ -12,6 +12,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.core.content.ContextCompat
+import androidx.core.view.WindowCompat
 import com.getprediq.app.ui.theme.PrediqTheme
 
 class MainActivity : ComponentActivity() {
@@ -22,6 +23,10 @@ class MainActivity : ComponentActivity() {
         consumeIntent(intent)
         requestNotificationPermissionIfNeeded()
         enableEdgeToEdge()
+        WindowCompat.getInsetsController(window, window.decorView).apply {
+            isAppearanceLightStatusBars = true
+            isAppearanceLightNavigationBars = true
+        }
         setContent { PrediqTheme { PrediqContractApp(authCallback) { authCallback = null } } }
     }
 

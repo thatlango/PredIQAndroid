@@ -19,6 +19,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.getprediq.app.data.v2.*
+import com.getprediq.app.ui.TeamCrest
+import java.time.OffsetDateTime
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 
 val Ivory = Color(0xFFF7F5F0)
 val IvoryDeep = Color(0xFFF0EEE8)
@@ -65,8 +69,10 @@ fun PrediqHeader(
         }
         Column(Modifier.weight(1f)) {
             if (title == null) {
-                Text("Pred", fontSize = 31.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF183A7A))
-                Text("IQ", fontSize = 31.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF8EDB16), modifier = Modifier.offset(x = 61.dp, y = (-37).dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Pred", fontSize = 31.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF183A7A), letterSpacing = (-1).sp)
+                    Text("IQ", fontSize = 31.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF8EDB16), letterSpacing = (-1).sp)
+                }
             } else {
                 Text(title, style = MaterialTheme.typography.titleLarge, color = Ink, fontWeight = FontWeight.Bold)
                 subtitle?.let { Text(it, color = Muted, style = MaterialTheme.typography.bodySmall) }
@@ -186,7 +192,7 @@ fun TeamLine(event: V2Event, dark: Boolean = false) {
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Text(event.competition.name ?: event.sport.orEmpty().replaceFirstChar(Char::uppercase), color = muted, style = MaterialTheme.typography.bodySmall)
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            EntityAvatar(event.participants.home.name, dark)
+            TeamCrest(event.participants.home.name, event.sport ?: "football", size = 38.dp, dark = dark)
             Spacer(Modifier.width(8.dp))
             Text(event.participants.home.name, color = fg, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
             event.score?.let {
@@ -194,7 +200,7 @@ fun TeamLine(event: V2Event, dark: Boolean = false) {
             } ?: Text("VS", color = muted, fontWeight = FontWeight.Bold)
             Text(event.participants.away.name, color = fg, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
             Spacer(Modifier.width(8.dp))
-            EntityAvatar(event.participants.away.name, dark)
+            TeamCrest(event.participants.away.name, event.sport ?: "football", size = 38.dp, dark = dark)
         }
     }
 }
@@ -325,4 +331,11 @@ fun LoadingState(label: String = "Checking PredIQ…") {
 
 fun percent(value: Double?): String = value?.let { "${(it * 100).toInt()}%" } ?: "–"
 fun compactTime(raw: String?): String = raw?.replace('T', ' ')?.take(16) ?: ""
+
+fun friendlyDateTime(raw: String?): String {
+    if (raw.isNullOrBlank()) return "–"
+    return runCatching {
+        OffsetDateTime.parse(raw).format(DateTimeFormatter.ofPattern("d MMM yyyy, HH:mm", Locale.ENGLISH))
+    }.getOrElse { compactTime(raw).ifBlank { raw } }
+}
 fun humanize(raw: String?): String = raw.orEmpty().replace('_', ' ').split(' ').joinToString(" ") { it.replaceFirstChar(Char::uppercase) }

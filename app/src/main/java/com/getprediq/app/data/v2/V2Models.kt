@@ -127,7 +127,15 @@ import kotlinx.serialization.json.JsonObject
 )
 
 @Serializable data class V2Upcoming(val event: V2Event = V2Event(), val decision: V2DecisionState = V2DecisionState(), @SerialName("follow_state") val followState: V2FollowState = V2FollowState())
-@Serializable data class V2FilterOptions(val sports: List<String> = emptyList(), val competitions: List<String> = emptyList(), val markets: List<String> = emptyList(), val outcomes: List<String> = emptyList(), val statuses: List<String> = emptyList())
+@Serializable data class V2SportFilter(val code: String = "", val label: String = "", val events: Int = 0)
+@Serializable data class V2CompetitionFilter(val name: String = "", val sport: String? = null, val country: String? = null, val events: Int = 0)
+@Serializable data class V2FilterOptions(
+    val sports: List<V2SportFilter> = emptyList(),
+    val competitions: List<V2CompetitionFilter> = emptyList(),
+    val markets: List<String> = emptyList(),
+    val outcomes: List<String> = emptyList(),
+    val statuses: List<String> = emptyList(),
+)
 
 @Serializable data class V2TodayResponse(
     @SerialName("contract_version") val contractVersion: String = "2.0",
