@@ -1,0 +1,40 @@
+name: Import PredIQ 1.2.0 release source
+
+on:
+  push:
+    branches:
+      - release/prediq-1.2.0-source
+
+permissions:
+  contents: write
+
+jobs:
+  import-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download exact tested release patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --location \
+            https://getprediq.site/__prediq_release_source_120/prediq-android-1.2.0.patch \
+            --output /tmp/prediq-android-1.2.0.patch
+          echo "744a9ac5cf681a56f502313b1cf8c7a109a5426419b3a1084775805e14fa0b36  /tmp/prediq-android-1.2.0.patch" | sha256sum --check --strict
+
+      - name: Apply release source and remove importer
+        shell: bash
+        run: |
+          set -euo pipefail
+          git apply --check /tmp/prediq-android-1.2.0.patch
+          git apply /tmp/prediq-android-1.2.0.patch
+          git rm .github/workflows/import-prediq-v120.yml
+          git config user.name "Tuku Product Engineering"
+          git config user.email "engineering@tukutuku.org"
+          git add -A
+          git commit -m "feat: absorb PredIQ intelligence into Android 1.2.0"
+          git push origin HEAD:release/prediq-1.2.0-source
