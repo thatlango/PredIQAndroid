@@ -4,7 +4,9 @@
 /.idea/
 .DS_Store
 /build/
-/captures/
+captures/
 .externalNativeBuild/
 .cxx/
 app/build/
+app/google-services.json
+app/src/*/google-services.json
