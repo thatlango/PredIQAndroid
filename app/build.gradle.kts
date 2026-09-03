@@ -20,8 +20,8 @@ android {
         applicationId = "com.getprediq.app"
         minSdk = 24
         targetSdk = 35
-        versionCode = 4
-        versionName = "1.2.0"
+        versionCode = 5
+        versionName = "1.3.0"
         buildConfigField("String", "PREDIQ_API_BASE_URL", "\"https://api.getprediq.site/api/v1/\"")
     }
 
@@ -78,7 +78,9 @@ dependencies {
     implementation("io.coil-kt:coil-compose:2.7.0")
     implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
     implementation("com.google.firebase:firebase-messaging:24.1.0")
+
+    testImplementation("junit:junit:4.13.2")
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.9.0")
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
-    testImplementation("junit:junit:4.13.2")
 }

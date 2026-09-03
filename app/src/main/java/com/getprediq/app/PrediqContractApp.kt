@@ -32,7 +32,7 @@ import com.getprediq.app.ui.contract.*
 import kotlinx.coroutines.launch
 
 private enum class ContractTab(val label: String) {
-    Today("Today"), Live("Live"), Results("Results"), Research("Research"), Account("Account")
+    Today("Today"), Live("Live"), Builder("Builder"), Tickets("Tickets"), Account("Account")
 }
 
 @Composable
@@ -116,12 +116,12 @@ fun PrediqContractApp(authCallback: Uri? = null, onAuthCallbackConsumed: () -> U
                 onTeam = { id -> contractVm.loadTeam(id); nav.navigate("team/${Uri.encode(id)}") },
                 onPlayer = { id -> contractVm.loadPlayer(id); nav.navigate("player/${Uri.encode(id)}") },
                 onLeague = { id -> contractVm.loadCompetition(id); nav.navigate("league/${Uri.encode(id)}") },
+                onV3Event = { id -> contractVm.loadV3Event(id); nav.navigate("v3-event/${Uri.encode(id)}") },
                 onSearch = { nav.navigate("search") },
                 onFollowing = { contractVm.loadAccount(); nav.navigate("following") },
                 onNotifications = { nav.navigate("notifications") },
                 onInbox = { nav.navigate("inbox") },
                 onUpcoming = { nav.navigate("upcoming") },
-                onBuilder = { nav.navigate("odds-builder") },
                 onProfile = { nav.navigate("profile") },
                 onPlan = { nav.navigate("plan") },
                 onPayments = { nav.navigate("payments") },
@@ -217,12 +217,12 @@ private fun MainContractTabs(
     onTeam: (String) -> Unit,
     onPlayer: (String) -> Unit,
     onLeague: (String) -> Unit,
+    onV3Event: (String) -> Unit,
     onSearch: () -> Unit,
     onFollowing: () -> Unit,
     onNotifications: () -> Unit,
     onInbox: () -> Unit,
     onUpcoming: () -> Unit,
-    onBuilder: () -> Unit,
     onProfile: () -> Unit,
     onPlan: () -> Unit,
     onPayments: () -> Unit,
@@ -236,55 +236,80 @@ private fun MainContractTabs(
     var filters by rememberSaveable { mutableStateOf(false) }
 
     Scaffold(
-        containerColor = Ivory,
+        containerColor = Color(0xFF080D1D),
         bottomBar = {
-            NavigationBar(containerColor = Color.White, tonalElevation = 1.dp) {
+            NavigationBar(containerColor = Color(0xFF0B1230), tonalElevation = 0.dp) {
                 ContractTab.entries.forEach { item ->
                     val icon = when (item) {
                         ContractTab.Today -> Icons.Outlined.Home
                         ContractTab.Live -> Icons.Outlined.Sensors
-                        ContractTab.Results -> Icons.Outlined.FactCheck
-                        ContractTab.Research -> Icons.Outlined.Search
+                        ContractTab.Builder -> Icons.Outlined.AutoGraph
+                        ContractTab.Tickets -> Icons.Outlined.Bookmarks
                         ContractTab.Account -> Icons.Outlined.Person
                     }
                     NavigationBarItem(
                         selected = tab == item,
                         onClick = { tab = item },
                         icon = { Icon(icon, item.label) },
-                        label = { Text(item.label) },
+                        label = { Text(item.label, fontWeight = if (tab == item) FontWeight.Bold else FontWeight.Medium) },
                         colors = NavigationBarItemDefaults.colors(
-                            selectedIconColor = PurpleDeep, selectedTextColor = PurpleDeep,
-                            indicatorColor = Color(0xFFEDE9FE), unselectedIconColor = Muted, unselectedTextColor = Muted,
+                            selectedIconColor = Color.White,
+                            selectedTextColor = Color(0xFFB8F23A),
+                            indicatorColor = Color(0xFF202A52),
+                            unselectedIconColor = Color.White.copy(alpha = .72f),
+                            unselectedTextColor = Color.White.copy(alpha = .62f),
                         ),
                     )
                 }
             }
         },
     ) { padding ->
-        Box(Modifier.padding(bottom = padding.calculateBottomPadding())) {
+        Box(Modifier.fillMaxSize().padding(bottom = padding.calculateBottomPadding())) {
             when (tab) {
-                ContractTab.Today -> TodayContractScreen(state, vm::loadToday, onDecision, { toggleFollow(vm, state, it) }, { filters = true }, onUpcoming, onBuilder, onPlan)
-                ContractTab.Live -> LiveContractScreen(state, vm::loadLive, onLive, { filters = true }, onPlan)
-                ContractTab.Results -> ResultsContractScreen(state, vm::setResultPeriod, vm::setResultOutcome, vm::setSport, vm::setCompetition, vm::setResultMarket, onResult, onPerformance, onPlan)
-                ContractTab.Research -> ResearchContractScreen(state, onSearch, onTeam, onPlayer, onLeague, onPlan)
-                ContractTab.Account -> AccountContractScreen(state, onProfile, onFollowing, onNotifications, onPlan, onPayments, onHelp, onLogout)
-            }
-            if (tab == ContractTab.Today || tab == ContractTab.Live) {
-                FilledTonalIconButton(
-                    onClick = onInbox,
-                    modifier = Modifier.align(Alignment.TopEnd).padding(top = 15.dp, end = 66.dp),
-                    colors = IconButtonDefaults.filledTonalIconButtonColors(containerColor = Color.White),
-                ) { Icon(Icons.Outlined.Notifications, "Notifications", tint = Ink) }
-            }
-            if (tab == ContractTab.Research) {
-                ExtendedFloatingActionButton(onClick = onCompare, modifier = Modifier.align(Alignment.BottomEnd).padding(18.dp), containerColor = Purple, contentColor = Color.White) {
-                    Icon(Icons.Outlined.CompareArrows, null); Spacer(Modifier.width(7.dp)); Text("Compare")
-                }
-            }
-            if (tab == ContractTab.Account) {
-                SmallFloatingActionButton(onClick = onReferral, modifier = Modifier.align(Alignment.BottomEnd).padding(18.dp), containerColor = Color(0xFFE9F7D2), contentColor = GreenDeep) {
-                    Icon(Icons.Outlined.GroupAdd, "Refer & earn")
-                }
+                ContractTab.Today -> PremiumTodayScreen(
+                    state = state,
+                    onRefresh = vm::loadToday,
+                    onDecision = onDecision,
+                    onBuild = { tab = ContractTab.Builder },
+                    onLive = { tab = ContractTab.Live },
+                    onFilters = { filters = true },
+                    onResearch = onSearch,
+                    onNotifications = onInbox,
+                )
+                ContractTab.Live -> PremiumLiveScreen(
+                    state = state,
+                    onRefresh = vm::loadLive,
+                    onOpen = onLive,
+                    onFilters = { filters = true },
+                    onNotifications = onInbox,
+                )
+                ContractTab.Builder -> PremiumBuilderScreen(
+                    state = state,
+                    onTarget = vm::setV3Target,
+                    onRisk = vm::setV3Risk,
+                    onSource = vm::setV3Bookmaker,
+                    onBuild = vm::buildV3Ticket,
+                    onOpenEvent = onV3Event,
+                    onRemoveLeg = vm::removeV3Leg,
+                    onSave = vm::saveV3Ticket,
+                    onSaved = { vm.loadV3SavedTickets(); tab = ContractTab.Tickets },
+                )
+                ContractTab.Tickets -> PremiumTicketsScreen(
+                    state = state,
+                    onLoad = vm::loadV3SavedTickets,
+                    onOpen = { saved -> vm.openV3SavedTicket(saved); tab = ContractTab.Builder },
+                    onDelete = vm::deleteV3Ticket,
+                    onBuild = { tab = ContractTab.Builder },
+                )
+                ContractTab.Account -> PremiumAccountScreen(
+                    state = state,
+                    onProfile = onProfile,
+                    onFollowing = onFollowing,
+                    onNotifications = onNotifications,
+                    onPlans = onPlan,
+                    onResearch = onSearch,
+                    onLogout = onLogout,
+                )
             }
         }
     }

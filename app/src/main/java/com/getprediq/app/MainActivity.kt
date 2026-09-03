@@ -24,8 +24,8 @@ class MainActivity : ComponentActivity() {
         requestNotificationPermissionIfNeeded()
         enableEdgeToEdge()
         WindowCompat.getInsetsController(window, window.decorView).apply {
-            isAppearanceLightStatusBars = true
-            isAppearanceLightNavigationBars = true
+            isAppearanceLightStatusBars = false
+            isAppearanceLightNavigationBars = false
         }
         setContent { PrediqTheme { PrediqContractApp(authCallback) { authCallback = null } } }
     }
