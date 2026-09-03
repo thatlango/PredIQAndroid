@@ -196,3 +196,25 @@ data class V3TicketResponse(
     val message: String? = null,
     val disclaimer: String? = null,
 )
+
+
+@Serializable
+data class V3SavedTicket(
+    val id: String = "",
+    val title: String? = null,
+    @SerialName("target_odds") val targetOdds: Double? = null,
+    @SerialName("risk_profile") val riskProfile: String? = null,
+    val bookmaker: String? = null,
+    @SerialName("combined_odds") val combinedOdds: Double? = null,
+    @SerialName("joint_probability") val jointProbability: Double? = null,
+    val status: String? = null,
+    val payload: V3TicketResponse = V3TicketResponse(),
+    @SerialName("created_at") val createdAt: String? = null,
+    @SerialName("updated_at") val updatedAt: String? = null,
+)
+
+@Serializable
+data class V3SavedTicketsResponse(
+    @SerialName("contract_version") val contractVersion: String = "3.1",
+    val tickets: List<V3SavedTicket> = emptyList(),
+)

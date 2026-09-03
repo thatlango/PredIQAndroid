@@ -20,6 +20,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.getprediq.app.PrediqContractState
 import com.getprediq.app.data.v2.*
+import com.getprediq.app.ui.CompetitionMark
+import com.getprediq.app.ui.PlayerHeadshot
+import com.getprediq.app.ui.TeamCrest
 
 @Composable
 fun TodayContractScreen(
@@ -29,16 +32,24 @@ fun TodayContractScreen(
     onFollow: (V2DecisionCard) -> Unit,
     onFilters: () -> Unit,
     onUpcoming: () -> Unit,
+    onBuilder: () -> Unit,
+    onPlans: () -> Unit,
 ) {
     val data = state.today
+    val filteredTopPicks = data?.topPicks.orEmpty().filter { matchesDecisionFilters(it, state) }
+    val filteredWaiting = data?.waiting.orEmpty().filter { matchesDecisionFilters(it, state) }
     LazyColumn(
         modifier = Modifier.fillMaxSize().background(Ivory),
         contentPadding = PaddingValues(start = 18.dp, end = 18.dp, top = 6.dp, bottom = 110.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        item { PrediqHeader(actionIcon = Icons.Outlined.Notifications, onAction = {}) }
+        item { PrediqHeader() }
         if (data == null) {
-            item { if (state.busy || state.refreshing) LoadingState("Checking today’s games…") else EmptyState("Today is not ready", state.error ?: "PredIQ could not load today's analysis.", action = "Try again", onAction = onRefresh) }
+            item {
+                if (state.busy || state.refreshing) LoadingState("Checking today’s games…")
+                else if (accessRequired(state.error)) EmptyState("Unlock PredIQ Intelligence", "Your trial or subscription is needed for ranked analysis, live intelligence and the Odds Builder.", Icons.Outlined.WorkspacePremium, "View plans", onPlans)
+                else EmptyState("Today is not ready", state.error ?: "PredIQ could not load today's analysis.", action = "Try again", onAction = onRefresh)
+            }
             return@LazyColumn
         }
         item {
@@ -56,6 +67,11 @@ fun TodayContractScreen(
                         Triple("Changed", data.briefing.changedSince.toString(), Icons.Outlined.Update),
                     )
                 )
+                Button(
+                    onClick = onBuilder,
+                    colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = PurpleDeep),
+                    modifier = Modifier.fillMaxWidth(),
+                ) { Icon(Icons.Outlined.AutoGraph, null); Spacer(Modifier.width(7.dp)); Text("Build target odds", fontWeight = FontWeight.Bold) }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                     TextButton(onClick = onFilters) { Icon(Icons.Outlined.Tune, null, tint = Color.White); Spacer(Modifier.width(5.dp)); Text("Filters", color = Color.White) }
                     TextButton(onClick = onRefresh) { Icon(Icons.Outlined.Refresh, null, tint = Color.White); Spacer(Modifier.width(5.dp)); Text("Refresh", color = Color.White) }
@@ -73,17 +89,17 @@ fun TodayContractScreen(
                 }
             }
         }
-        item { SectionHeading("Best picks today", if (data.topPicks.size > 3) "View all" else null) }
-        if (data.topPicks.isEmpty()) {
+        item { SectionHeading("Best picks today", if (filteredTopPicks.size > 3) "View all" else null) }
+        if (filteredTopPicks.isEmpty()) {
             item { EmptyState("No picks clear the standard yet", "PredIQ is still checking today's games. Waiting or passing is a valid decision.", Icons.Outlined.HourglassTop) }
         } else {
-            items(data.topPicks.take(8), key = { it.id }) { card ->
+            items(filteredTopPicks.take(8), key = { it.id }) { card ->
                 DecisionCard(card, onOpen = { onOpenDecision(card.id) }, onFollow = { onFollow(card) }, featured = card.decision.code == "top_pick")
             }
         }
-        if (data.waiting.isNotEmpty()) {
+        if (filteredWaiting.isNotEmpty()) {
             item { SectionHeading("Worth waiting for") }
-            items(data.waiting.take(6), key = { "wait-${it.id}" }) { card ->
+            items(filteredWaiting.take(6), key = { "wait-${it.id}" }) { card ->
                 WhiteCard(onClick = { onOpenDecision(card.id) }) {
                     TeamLine(card.event)
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -147,8 +163,12 @@ fun LiveContractScreen(
     onRefresh: () -> Unit,
     onOpen: (String) -> Unit,
     onFilters: () -> Unit,
+    onPlans: () -> Unit,
 ) {
     val data = state.live
+    val filteredFollowing = data?.following.orEmpty().filter { matchesLiveFilters(it, state) }
+    val filteredOpportunities = data?.opportunities.orEmpty().filter { matchesLiveFilters(it, state) }
+    val filteredGames = data?.games.orEmpty().filter { matchesLiveFilters(it, state) }
     LazyColumn(
         Modifier.fillMaxSize().background(Ivory),
         contentPadding = PaddingValues(start = 18.dp, end = 18.dp, top = 6.dp, bottom = 110.dp),
@@ -156,7 +176,11 @@ fun LiveContractScreen(
     ) {
         item { PrediqHeader() }
         if (data == null) {
-            item { if (state.busy || state.refreshing) LoadingState("Checking live games…") else EmptyState("Live is unavailable", state.error ?: "PredIQ could not refresh live analysis.", Icons.Outlined.SensorsOff, "Try again", onRefresh) }
+            item {
+                if (state.busy || state.refreshing) LoadingState("Checking live games…")
+                else if (accessRequired(state.error)) EmptyState("Live intelligence is part of full access", "Activate or extend PredIQ access to see live changes and market intelligence.", Icons.Outlined.WorkspacePremium, "View plans", onPlans)
+                else EmptyState("Live is unavailable", state.error ?: "PredIQ could not refresh live analysis.", Icons.Outlined.SensorsOff, "Try again", onRefresh)
+            }
             return@LazyColumn
         }
         item {
@@ -176,23 +200,23 @@ fun LiveContractScreen(
         }
         if (data.liveState == "cached") item { EmptyState("Showing the latest available analysis", "Fresh live data is still arriving. PredIQ will replace this view when the next update lands.", Icons.Outlined.CloudSync) }
         if (data.liveState == "error") item { EmptyState("Live refresh failed", data.message ?: "The latest saved state is still available.", Icons.Outlined.CloudOff, "Retry", onRefresh) }
-        if (data.following.isNotEmpty()) {
+        if (filteredFollowing.isNotEmpty()) {
             item { SectionHeading("Following") }
-            items(data.following, key = { "following-${it.id}" }) { card -> LiveDecisionCard(card) { onOpen(card.id) } }
+            items(filteredFollowing, key = { "following-${it.id}" }) { card -> LiveDecisionCard(card) { onOpen(card.id) } }
         }
-        if (data.opportunities.isNotEmpty()) {
+        if (filteredOpportunities.isNotEmpty()) {
             item { SectionHeading("Live opportunities") }
-            items(data.opportunities, key = { "opp-${it.id}" }) { card -> LiveDecisionCard(card) { onOpen(card.id) } }
+            items(filteredOpportunities, key = { "opp-${it.id}" }) { card -> LiveDecisionCard(card) { onOpen(card.id) } }
         }
         if (data.changes.isNotEmpty()) {
             item { SectionHeading("Changed recently") }
             item { WhiteCard { data.changes.take(5).forEachIndexed { index, change -> ChangeRow(change); if (index < data.changes.take(5).lastIndex) HorizontalDivider(color = Hairline) } } }
         }
         item { SectionHeading("All live games") }
-        if (data.games.isEmpty() && data.opportunities.isEmpty() && data.following.isEmpty()) {
+        if (filteredGames.isEmpty() && filteredOpportunities.isEmpty() && filteredFollowing.isEmpty()) {
             item { EmptyState("Nothing live right now", "Upcoming events will appear here once play starts.", Icons.Outlined.Schedule) }
         } else {
-            items(data.games, key = { "game-${it.id}" }) { card ->
+            items(filteredGames, key = { "game-${it.id}" }) { card ->
                 WhiteCard(onClick = { onOpen(card.id) }) {
                     TeamLine(card.event)
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -212,8 +236,12 @@ fun ResultsContractScreen(
     state: PrediqContractState,
     onPeriod: (Int) -> Unit,
     onOutcome: (String) -> Unit,
+    onSport: (String) -> Unit,
+    onCompetition: (String) -> Unit,
+    onMarket: (String) -> Unit,
     onOpenResult: (String) -> Unit,
     onPerformance: (String) -> Unit,
+    onPlans: () -> Unit,
 ) {
     val summary = state.resultsSummary
     val feed = state.results
@@ -224,7 +252,11 @@ fun ResultsContractScreen(
     ) {
         item { PrediqHeader() }
         if (summary == null) {
-            item { if (state.busy || state.refreshing) LoadingState("Loading PredIQ's record…") else EmptyState("Results are unavailable", state.error ?: "PredIQ could not load the track record.", Icons.Outlined.Analytics) }
+            item {
+                if (state.busy || state.refreshing) LoadingState("Loading PredIQ's record…")
+                else if (accessRequired(state.error)) EmptyState("Full track record requires access", "Activate PredIQ to audit the same decision system you use for picks and Odds Builder combinations.", Icons.Outlined.WorkspacePremium, "View plans", onPlans)
+                else EmptyState("Results are unavailable", state.error ?: "PredIQ could not load the track record.", Icons.Outlined.Analytics)
+            }
             return@LazyColumn
         }
         item {
@@ -242,6 +274,33 @@ fun ResultsContractScreen(
         item {
             LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 items(listOf(7, 30, 90, 365)) { days -> FilterChip(selected = state.resultPeriodDays == days, onClick = { onPeriod(days) }, label = { Text(if (days == 365) "1Y" else "${days}D") }) }
+            }
+        }
+        if (summary.bySport.isNotEmpty()) {
+            item {
+                Text("Sport", color = Muted, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    item { FilterChip(selected = state.selectedSport.isBlank(), onClick = { onSport("") }, label = { Text("All") }) }
+                    items(summary.bySport.mapNotNull { it.sport }.distinct()) { sport -> FilterChip(selected = state.selectedSport == sport, onClick = { onSport(sport) }, label = { Text(humanize(sport)) }) }
+                }
+            }
+        }
+        if (summary.byCompetition.isNotEmpty()) {
+            item {
+                Text("Competition", color = Muted, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    item { FilterChip(selected = state.selectedCompetition.isBlank(), onClick = { onCompetition("") }, label = { Text("All leagues") }) }
+                    items(summary.byCompetition.mapNotNull { it.competition }.distinct().take(30)) { competition -> FilterChip(selected = state.selectedCompetition == competition, onClick = { onCompetition(competition) }, label = { Text(competition, maxLines = 1) }) }
+                }
+            }
+        }
+        if (summary.byMarket.isNotEmpty()) {
+            item {
+                Text("Market", color = Muted, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    item { FilterChip(selected = state.resultMarket.isBlank(), onClick = { onMarket("") }, label = { Text("All markets") }) }
+                    items(summary.byMarket.mapNotNull { it.market }.distinct()) { market -> FilterChip(selected = state.resultMarket == market, onClick = { onMarket(market) }, label = { Text(humanize(market)) }) }
+                }
             }
         }
         if (summary.calibration.isNotEmpty()) {
@@ -312,6 +371,7 @@ fun ResearchContractScreen(
     onTeam: (String) -> Unit,
     onPlayer: (String) -> Unit,
     onLeague: (String) -> Unit,
+    onPlans: () -> Unit,
 ) {
     val data = state.research
     LazyColumn(
@@ -328,14 +388,26 @@ fun ResearchContractScreen(
             }
         }
         if (data == null) {
-            item { if (state.busy) LoadingState("Loading research…") else EmptyState("Research is unavailable", state.error ?: "Try again in a moment.") }
+            item {
+                if (state.busy) LoadingState("Loading research…")
+                else if (accessRequired(state.error)) EmptyState("Research requires PredIQ access", "Team, player, league and multi-market intelligence are part of full access.", Icons.Outlined.WorkspacePremium, "View plans", onPlans)
+                else EmptyState("Research is unavailable", state.error ?: "Try again in a moment.")
+            }
             return@LazyColumn
         }
         if (data.teamsInTodayPicks.isNotEmpty()) {
             item { SectionHeading("Teams in today's picks") }
             items(data.teamsInTodayPicks.take(8), key = { it.id }) { team ->
                 WhiteCard(onClick = { onTeam(team.id) }) {
-                    InfoRow(Icons.Outlined.Shield, team.name, listOfNotNull(team.country, "${team.matchesCount} matches observed").joinToString(" · "), trailing = null)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        TeamCrest(team.name, team.sport.ifBlank { "football" }, size = 46.dp)
+                        Spacer(Modifier.width(12.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(team.name, color = Ink, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text(listOfNotNull(team.country, "${team.matchesCount} matches observed").joinToString(" · "), color = Muted, style = MaterialTheme.typography.bodySmall)
+                        }
+                        Icon(Icons.Outlined.ChevronRight, null, tint = Muted)
+                    }
                     profileHighlights(team.profile).take(2).forEach { Text(it, color = Muted, style = MaterialTheme.typography.bodySmall) }
                 }
             }
@@ -347,7 +419,7 @@ fun ResearchContractScreen(
                     items(data.leagues.take(10), key = { it.id }) { league ->
                         Card(Modifier.width(240.dp).clickable { onLeague(league.id) }, shape = RoundedCornerShape(22.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
                             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                                Box(Modifier.size(42.dp).background(Color(0xFFEDE9FE), CircleShape), contentAlignment = Alignment.Center) { Icon(Icons.Outlined.EmojiEvents, null, tint = Purple) }
+                                CompetitionMark(league.name, league.sport.ifBlank { "football" }, size = 42.dp)
                                 Text(league.name, color = Ink, fontWeight = FontWeight.Bold, maxLines = 2)
                                 Text(listOfNotNull(league.country, league.season).joinToString(" · "), color = Muted, style = MaterialTheme.typography.bodySmall)
                                 profileHighlights(league.profile).take(2).forEach { Text(it, color = Muted, style = MaterialTheme.typography.bodySmall, maxLines = 1) }
@@ -363,7 +435,7 @@ fun ResearchContractScreen(
             items(data.playersToWatch.take(8), key = { it.id }) { player ->
                 WhiteCard(onClick = { onPlayer(player.id) }) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        EntityAvatar(player.name)
+                        PlayerHeadshot(player.name, player.sportCode.ifBlank { "football" }, size = 48.dp)
                         Spacer(Modifier.width(12.dp))
                         Column(Modifier.weight(1f)) {
                             Text(player.name, color = Ink, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
@@ -454,3 +526,44 @@ private fun profileHighlights(profile: kotlinx.serialization.json.JsonObject): L
     val text = value.toString().trim('"')
     if (text == "null" || text == "{}" || text == "[]") null else "${humanize(key)} · $text"
 }
+
+
+private fun matchesDecisionFilters(card: V2DecisionCard, state: PrediqContractState): Boolean {
+    if (state.selectedMarket.isNotBlank() && card.pick.market != state.selectedMarket) return false
+    if (state.selectedStatusFilter.isNotBlank() && card.decision.code != state.selectedStatusFilter) return false
+    if (state.selectedValueFilter.isNotBlank() && card.value.status != state.selectedValueFilter) return false
+    val p = card.chance.percent
+    if (state.selectedChanceBand.isNotBlank()) {
+        if (p == null) return false
+        val ok = when (state.selectedChanceBand) {
+            "80+" -> p >= 80
+            "70-79" -> p in 70..79
+            "60-69" -> p in 60..69
+            "<60" -> p < 60
+            else -> true
+        }
+        if (!ok) return false
+    }
+    return true
+}
+
+private fun matchesLiveFilters(card: V2LiveCard, state: PrediqContractState): Boolean {
+    if (state.selectedMarket.isNotBlank() && card.pick.market != state.selectedMarket) return false
+    if (state.selectedStatusFilter.isNotBlank() && card.decision.code != state.selectedStatusFilter) return false
+    if (state.selectedValueFilter.isNotBlank() && card.value.status != state.selectedValueFilter) return false
+    val p = card.currentChance.percent ?: card.chance.percent
+    if (state.selectedChanceBand.isNotBlank()) {
+        if (p == null) return false
+        val ok = when (state.selectedChanceBand) {
+            "80+" -> p >= 80
+            "70-79" -> p in 70..79
+            "60-69" -> p in 60..69
+            "<60" -> p < 60
+            else -> true
+        }
+        if (!ok) return false
+    }
+    return true
+}
+
+private fun accessRequired(message: String?): Boolean = message.orEmpty().lowercase().let { "subscription" in it || "trial" in it || "full access" in it }

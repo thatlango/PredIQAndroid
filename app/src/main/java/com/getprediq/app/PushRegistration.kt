@@ -76,6 +76,8 @@ class PrediqFirebaseMessagingService : FirebaseMessagingService() {
         super.onMessageReceived(message)
         val title = message.notification?.title ?: message.data["title"] ?: "PredIQ"
         val body = message.notification?.body ?: message.data["body"] ?: return
+        val notificationType = message.data["notification_type"]?.lowercase().orEmpty()
+        if (isQuietHours() && notificationType !in setOf("live", "lineup", "security")) return
         ensureAlertsChannel()
 
         val openApp = Intent(this, MainActivity::class.java).apply {
@@ -94,6 +96,23 @@ class PrediqFirebaseMessagingService : FirebaseMessagingService() {
             .setContentIntent(pendingIntent)
             .build()
         getSystemService(NotificationManager::class.java).notify(message.messageId?.hashCode() ?: System.currentTimeMillis().toInt(), notification)
+    }
+
+    private fun isQuietHours(): Boolean {
+        val prefs = getSharedPreferences("prediq_quiet_hours", Context.MODE_PRIVATE)
+        if (!prefs.getBoolean("enabled", false)) return false
+        fun minutes(value: String): Int? {
+            val parts = value.split(':')
+            val h = parts.getOrNull(0)?.toIntOrNull() ?: return null
+            val m = parts.getOrNull(1)?.toIntOrNull() ?: return null
+            if (h !in 0..23 || m !in 0..59) return null
+            return h * 60 + m
+        }
+        val start = minutes(prefs.getString("start", "22:00") ?: "22:00") ?: return false
+        val end = minutes(prefs.getString("end", "07:00") ?: "07:00") ?: return false
+        val now = java.time.LocalTime.now()
+        val current = now.hour * 60 + now.minute
+        return if (start == end) false else if (start < end) current in start until end else current >= start || current < end
     }
 
     private fun ensureAlertsChannel() {

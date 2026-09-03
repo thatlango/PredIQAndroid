@@ -80,6 +80,16 @@ class V3Api(private val session: SessionStore) {
         return json.decodeFromString(raw("tickets/build", "POST", body))
     }
 
+    suspend fun recalculateTicket(legs: List<V3TicketLeg>): V3TicketResponse {
+        val body = buildJsonObject { put("legs", json.parseToJsonElement(json.encodeToString(legs))) }.toString()
+        return json.decodeFromString(raw("tickets/recalculate", "POST", body))
+    }
+
+    suspend fun tickets(limit: Int = 30): V3SavedTicketsResponse =
+        json.decodeFromString(raw("tickets?limit=${limit.coerceIn(1,100)}"))
+
+    suspend fun deleteTicket(ticketId: String) { raw("tickets/${enc(ticketId)}", "DELETE") }
+
     suspend fun saveTicket(title: String, ticket: V3TicketResponse): V3TicketResponse {
         val body = buildJsonObject { put("title", title); put("ticket", json.parseToJsonElement(json.encodeToString(ticket))) }.toString()
         return json.decodeFromString(raw("tickets", "POST", body))

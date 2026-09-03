@@ -24,10 +24,12 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.getprediq.app.data.PlanDto
 import com.getprediq.app.data.v2.V2DecisionCard
 import com.getprediq.app.data.v2.V2LiveCard
 import com.getprediq.app.data.v2.V2SearchResult
 import com.getprediq.app.ui.contract.*
+import kotlinx.coroutines.launch
 
 private enum class ContractTab(val label: String) {
     Today("Today"), Live("Live"), Results("Results"), Research("Research"), Account("Account")
@@ -41,6 +43,8 @@ fun PrediqContractApp(authCallback: Uri? = null, onAuthCallbackConsumed: () -> U
     val authState by authVm.state
     val contractState = contractVm.state
     val nav = rememberNavController()
+    val scope = rememberCoroutineScope()
+    var paymentPlan by remember { mutableStateOf<PlanDto?>(null) }
 
     LaunchedEffect(authCallback) {
         authCallback?.let { uri ->
@@ -53,6 +57,7 @@ fun PrediqContractApp(authCallback: Uri? = null, onAuthCallbackConsumed: () -> U
 
     LaunchedEffect(authState.account?.user?.id) {
         if (authState.account != null) {
+            PushRegistrationCoordinator.sync(context.applicationContext)
             contractVm.bootstrap(force = true)
             if (nav.currentDestination?.route in setOf("signin", "signup", "forgot")) {
                 nav.navigate("main") { popUpTo("signin") { inclusive = true } }
@@ -99,7 +104,7 @@ fun PrediqContractApp(authCallback: Uri? = null, onAuthCallbackConsumed: () -> U
             ForgotPasswordContractScreen(onBack = { nav.popBackStack() }, onTuku = { authVm.startTuku { url -> context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) } })
         }
         composable("onboarding") {
-            OnboardingContractScreen(onDone = { nav.navigate("main") { popUpTo("onboarding") { inclusive = true } } }, onSearchTeams = { nav.navigate("search") })
+            OnboardingContractScreen(state = contractState, onDone = { nav.navigate("main") { popUpTo("onboarding") { inclusive = true } } }, onSearchTeams = { nav.navigate("search") }, onSaveNotifications = contractVm::saveNotifications)
         }
         composable("main") {
             MainContractTabs(
@@ -116,6 +121,7 @@ fun PrediqContractApp(authCallback: Uri? = null, onAuthCallbackConsumed: () -> U
                 onNotifications = { nav.navigate("notifications") },
                 onInbox = { nav.navigate("inbox") },
                 onUpcoming = { nav.navigate("upcoming") },
+                onBuilder = { nav.navigate("odds-builder") },
                 onProfile = { nav.navigate("profile") },
                 onPlan = { nav.navigate("plan") },
                 onPayments = { nav.navigate("payments") },
@@ -124,8 +130,11 @@ fun PrediqContractApp(authCallback: Uri? = null, onAuthCallbackConsumed: () -> U
                 onCompare = { nav.navigate("compare") },
                 onPerformance = { market -> nav.navigate("performance/${Uri.encode(market)}") },
                 onLogout = {
-                    authVm.logout(); contractVm.clearForLogout()
-                    nav.navigate("signin") { popUpTo("main") { inclusive = true } }
+                    scope.launch {
+                        PushRegistrationCoordinator.deactivate(context.applicationContext)
+                        authVm.logout(); contractVm.clearForLogout()
+                        nav.navigate("signin") { popUpTo("main") { inclusive = true } }
+                    }
                 },
             )
         }
@@ -137,35 +146,65 @@ fun PrediqContractApp(authCallback: Uri? = null, onAuthCallbackConsumed: () -> U
                 onTeam = { id -> contractVm.loadTeam(id); nav.navigate("team/${Uri.encode(id)}") },
                 onLeague = { id -> contractVm.loadCompetition(id); nav.navigate("league/${Uri.encode(id)}") },
                 onSources = { nav.navigate("sources") },
+                onV3Event = { id -> contractVm.loadV3Event(id); nav.navigate("v3-event/${Uri.encode(id)}") },
             )
         }
         composable("live-detail/{id}", arguments = listOf(navArgument("id") { type = NavType.StringType })) { entry ->
             val id = Uri.decode(entry.arguments?.getString("id").orEmpty())
             val card = findLiveCard(contractState, id)
-            LiveMatchDetailScreen(card, onBack = { nav.popBackStack() }, onOpenFull = { ref -> contractVm.loadPrediction(ref); nav.navigate("prediction/${Uri.encode(ref)}") })
+            LiveMatchDetailScreen(card, onBack = { nav.popBackStack() }, onOpenFull = { ref -> contractVm.loadPrediction(ref); nav.navigate("prediction/${Uri.encode(ref)}") }, onOpenV3 = { eventId -> contractVm.loadV3Event(eventId); nav.navigate("v3-event/${Uri.encode(eventId)}") })
         }
         composable("result/{id}", arguments = listOf(navArgument("id") { type = NavType.StringType })) { ResultReviewContractScreen(contractState, onBack = { nav.popBackStack() }) }
-        composable("team/{id}", arguments = listOf(navArgument("id") { type = NavType.StringType })) { TeamDetailContractScreen(contractState, onBack = { nav.popBackStack() }) }
-        composable("player/{id}", arguments = listOf(navArgument("id") { type = NavType.StringType })) { PlayerDetailContractScreen(contractState, onBack = { nav.popBackStack() }) }
+        composable("team/{id}", arguments = listOf(navArgument("id") { type = NavType.StringType })) { TeamDetailContractScreen(contractState, onBack = { nav.popBackStack() }, onFollowEntity = contractVm::follow) }
+        composable("player/{id}", arguments = listOf(navArgument("id") { type = NavType.StringType })) { PlayerDetailContractScreen(contractState, onBack = { nav.popBackStack() }, onFollowEntity = contractVm::follow) }
         composable("league/{id}", arguments = listOf(navArgument("id") { type = NavType.StringType })) {
-            CompetitionDetailContractScreen(contractState, onBack = { nav.popBackStack() }, onOpenDecision = { ref -> contractVm.loadPrediction(ref); nav.navigate("prediction/${Uri.encode(ref)}") })
+            CompetitionDetailContractScreen(contractState, onBack = { nav.popBackStack() }, onOpenDecision = { ref -> contractVm.loadPrediction(ref); nav.navigate("prediction/${Uri.encode(ref)}") }, onFollowEntity = contractVm::follow)
         }
         composable("search") { SearchContractScreen(contractState, onBack = { nav.popBackStack() }, onQuery = contractVm::search, onOpen = { item -> openSearchResult(item, contractVm, nav) }) }
-        composable("following") { FollowingContractScreen(contractState, onBack = { nav.popBackStack() }, onUnfollow = contractVm::unfollow, onUpdate = contractVm::updateFollow) }
-        composable("notifications") { NotificationPreferencesContractScreen(contractState, onBack = { nav.popBackStack() }, onSave = contractVm::saveNotifications) }
+        composable("following") {
+            FollowingContractScreen(contractState, onBack = { nav.popBackStack() }, onUnfollow = contractVm::unfollow, onUpdate = contractVm::updateFollow, onOpen = { follow ->
+                when (follow.entityType) {
+                    "team" -> { contractVm.loadTeam(follow.entityKey); nav.navigate("team/${Uri.encode(follow.entityKey)}") }
+                    "player" -> { contractVm.loadPlayer(follow.entityKey); nav.navigate("player/${Uri.encode(follow.entityKey)}") }
+                    "competition" -> { contractVm.loadCompetition(follow.entityKey); nav.navigate("league/${Uri.encode(follow.entityKey)}") }
+                    "prediction" -> { contractVm.loadPrediction(follow.entityKey); nav.navigate("prediction/${Uri.encode(follow.entityKey)}") }
+                    "event" -> { contractVm.loadV3Event(follow.entityKey); nav.navigate("v3-event/${Uri.encode(follow.entityKey)}") }
+                }
+            })
+        }
+        composable("notifications") {
+            NotificationPreferencesContractScreen(contractState, onBack = { nav.popBackStack() }, onSave = { settings ->
+                contractVm.saveNotifications(settings)
+                if (settings.pushEnabled) scope.launch { PushRegistrationCoordinator.sync(context.applicationContext) }
+            })
+        }
         composable("inbox") { NotificationInboxContractScreen(contractState, onBack = { nav.popBackStack() }) }
-        composable("upcoming") { UpcomingContractScreen(contractState, onBack = { nav.popBackStack() }) }
+        composable("upcoming") { UpcomingContractScreen(contractState, onBack = { nav.popBackStack() }, onOpenV3 = { id -> contractVm.loadV3Event(id); nav.navigate("v3-event/${Uri.encode(id)}") }) }
         composable("sources") { EvidenceSourceContractScreen(contractState, onBack = { nav.popBackStack() }) }
         composable("compare") { TeamCompareContractScreen(contractState, onBack = { nav.popBackStack() }) }
-        composable("profile") { ProfileContractScreen(contractState, onBack = { nav.popBackStack() }) }
+        composable("profile") { ProfileContractScreen(contractState, onBack = { nav.popBackStack() }, onRefresh = { authVm.refreshAccount(); contractVm.loadAccount() }) }
         composable("help") { HelpContractScreen(onBack = { nav.popBackStack() }) }
-        composable("plan") { PlanContractScreen(authState.plans, contractState, onBack = { nav.popBackStack() }) }
+        composable("plan") { PlanContractScreen(authState.plans, contractState, onBack = { nav.popBackStack() }, onChoose = { paymentPlan = it }) }
         composable("payments") { PaymentsContractScreen(contractState, onBack = { nav.popBackStack() }) }
         composable("referral") { ReferralContractScreen(contractState, onBack = { nav.popBackStack() }) }
+        composable("odds-builder") {
+            OddsBuilderContractScreen(
+                state = contractState, onBack = { nav.popBackStack() },
+                onTarget = contractVm::setV3Target, onRisk = contractVm::setV3Risk, onSource = contractVm::setV3Bookmaker,
+                onBuild = contractVm::buildV3Ticket,
+                onOpenEvent = { id -> contractVm.loadV3Event(id); nav.navigate("v3-event/${Uri.encode(id)}") },
+                onRemoveLeg = contractVm::removeV3Leg,
+                onSave = contractVm::saveV3Ticket,
+                onSaved = { contractVm.loadV3SavedTickets(); nav.navigate("saved-odds") },
+            )
+        }
+        composable("v3-event/{id}", arguments = listOf(navArgument("id") { type = NavType.StringType })) { V3EventContractScreen(contractState, onBack = { nav.popBackStack() }, onFollowEvent = { id, label -> contractVm.follow("event", id, label) }) }
+        composable("saved-odds") { SavedOddsContractScreen(contractState, onBack = { nav.popBackStack() }, onDelete = contractVm::deleteV3Ticket, onOpen = { saved -> contractVm.openV3SavedTicket(saved); nav.popBackStack() }) }
         composable("performance/{market}", arguments = listOf(navArgument("market") { type = NavType.StringType })) { entry ->
             PerformanceBreakdownContractScreen(contractState, Uri.decode(entry.arguments?.getString("market").orEmpty()), onBack = { nav.popBackStack() })
         }
     }
+    paymentPlan?.let { plan -> PaymentContractSheet(plan = plan, state = authState, vm = authVm, onClose = { paymentPlan = null }) }
 }
 
 @Composable
@@ -183,6 +222,7 @@ private fun MainContractTabs(
     onNotifications: () -> Unit,
     onInbox: () -> Unit,
     onUpcoming: () -> Unit,
+    onBuilder: () -> Unit,
     onProfile: () -> Unit,
     onPlan: () -> Unit,
     onPayments: () -> Unit,
@@ -223,10 +263,10 @@ private fun MainContractTabs(
     ) { padding ->
         Box(Modifier.padding(bottom = padding.calculateBottomPadding())) {
             when (tab) {
-                ContractTab.Today -> TodayContractScreen(state, vm::loadToday, onDecision, { toggleFollow(vm, state, it) }, { filters = true }, onUpcoming)
-                ContractTab.Live -> LiveContractScreen(state, vm::loadLive, onLive, { filters = true })
-                ContractTab.Results -> ResultsContractScreen(state, vm::setResultPeriod, vm::setResultOutcome, onResult, onPerformance)
-                ContractTab.Research -> ResearchContractScreen(state, onSearch, onTeam, onPlayer, onLeague)
+                ContractTab.Today -> TodayContractScreen(state, vm::loadToday, onDecision, { toggleFollow(vm, state, it) }, { filters = true }, onUpcoming, onBuilder, onPlan)
+                ContractTab.Live -> LiveContractScreen(state, vm::loadLive, onLive, { filters = true }, onPlan)
+                ContractTab.Results -> ResultsContractScreen(state, vm::setResultPeriod, vm::setResultOutcome, vm::setSport, vm::setCompetition, vm::setResultMarket, onResult, onPerformance, onPlan)
+                ContractTab.Research -> ResearchContractScreen(state, onSearch, onTeam, onPlayer, onLeague, onPlan)
                 ContractTab.Account -> AccountContractScreen(state, onProfile, onFollowing, onNotifications, onPlan, onPayments, onHelp, onLogout)
             }
             if (tab == ContractTab.Today || tab == ContractTab.Live) {
@@ -248,7 +288,7 @@ private fun MainContractTabs(
             }
         }
     }
-    if (filters) FiltersContractSheet(state, onClose = { filters = false }, onSport = vm::setSport, onCompetition = vm::setCompetition, onFollowing = vm::setFollowingOnly)
+    if (filters) FiltersContractSheet(state, onClose = { filters = false }, onSport = vm::setSport, onCompetition = vm::setCompetition, onFollowing = vm::setFollowingOnly, onMarket = vm::setMarketFilter, onChance = vm::setChanceBand, onValue = vm::setValueFilter, onStatus = vm::setStatusFilter, onReset = vm::resetDecisionFilters)
 }
 
 private fun toggleFollow(vm: PrediqContractViewModel, state: PrediqContractState, card: V2DecisionCard) {

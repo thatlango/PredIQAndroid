@@ -38,12 +38,17 @@ data class PrediqContractState(
     val v3Bookmakers: V3BookmakerCatalog? = null,
     val v3Ticket: V3TicketResponse? = null,
     val v3Event: V3EventDetail? = null,
+    val v3SavedTickets: V3SavedTicketsResponse? = null,
     val v3TargetOdds: Double = 35.0,
     val v3Risk: String = "balanced",
     val v3Bookmaker: String = "prediq_reference",
     val searchQuery: String = "",
     val selectedSport: String = "",
     val selectedCompetition: String = "",
+    val selectedMarket: String = "",
+    val selectedChanceBand: String = "",
+    val selectedValueFilter: String = "",
+    val selectedStatusFilter: String = "",
     val followingOnly: Boolean = false,
     val resultPeriodDays: Int = 30,
     val resultOutcome: String = "",
@@ -59,6 +64,9 @@ class PrediqContractViewModel(context: Context) : ViewModel() {
         private set
 
     private var loadedForSession = false
+    private var todayGeneration = 0L
+    private var liveGeneration = 0L
+    private var resultsGeneration = 0L
 
     init {
         viewModelScope.launch {
@@ -69,6 +77,8 @@ class PrediqContractViewModel(context: Context) : ViewModel() {
 
     private fun mutate(block: (PrediqContractState) -> PrediqContractState) { state = block(state) }
     private suspend fun <T> safe(block: suspend () -> T): Result<T> = try { Result.success(block()) } catch (t: Throwable) { Result.failure(t) }
+    private fun userMessage(error: Throwable, fallback: String): String =
+        if (error is V2ApiException) error.message.takeIf { it.isNotBlank() } ?: fallback else fallback
 
     fun bootstrap(force: Boolean = false) {
         if (loadedForSession && !force) return
@@ -126,22 +136,25 @@ class PrediqContractViewModel(context: Context) : ViewModel() {
     }
 
     fun loadToday() = viewModelScope.launch {
+        val request = ++todayGeneration
         val s = state
         mutate { it.copy(refreshing = true, error = null) }
         safe { api.today(s.selectedSport.takeIf(String::isNotBlank), s.selectedCompetition.takeIf(String::isNotBlank), s.followingOnly, s.today?.changesCursor) }
-            .onSuccess { data -> mutate { it.copy(today = data, refreshing = false) } }
-            .onFailure { error -> mutate { it.copy(refreshing = false, error = error.message) } }
+            .onSuccess { data -> if (request == todayGeneration) mutate { it.copy(today = data, refreshing = false) } }
+            .onFailure { error -> if (request == todayGeneration) mutate { it.copy(refreshing = false, error = userMessage(error, "PredIQ could not load today's analysis.")) } }
     }
 
     fun loadLive() = viewModelScope.launch {
+        val request = ++liveGeneration
         val s = state
         mutate { it.copy(refreshing = true, error = null) }
         safe { api.live(s.selectedSport.takeIf(String::isNotBlank), s.selectedCompetition.takeIf(String::isNotBlank), s.followingOnly) }
-            .onSuccess { data -> mutate { it.copy(live = data, refreshing = false) } }
-            .onFailure { error -> mutate { it.copy(refreshing = false, error = error.message) } }
+            .onSuccess { data -> if (request == liveGeneration) mutate { it.copy(live = data, refreshing = false) } }
+            .onFailure { error -> if (request == liveGeneration) mutate { it.copy(refreshing = false, error = userMessage(error, "PredIQ could not refresh live analysis.")) } }
     }
 
     fun loadResults() = viewModelScope.launch {
+        val request = ++resultsGeneration
         val s = state
         mutate { it.copy(refreshing = true, error = null) }
         val summaryJob = async { safe { api.resultsSummary(s.resultPeriodDays) }.getOrNull() }
@@ -155,8 +168,9 @@ class PrediqContractViewModel(context: Context) : ViewModel() {
             )
         }
         val summary = summaryJob.await()
+        if (request != resultsGeneration) return@launch
         feedResult.onSuccess { data -> mutate { it.copy(results = data, resultsSummary = summary ?: it.resultsSummary, refreshing = false) } }
-            .onFailure { error -> mutate { it.copy(resultsSummary = summary ?: it.resultsSummary, refreshing = false, error = error.message) } }
+            .onFailure { error -> mutate { it.copy(resultsSummary = summary ?: it.resultsSummary, refreshing = false, error = userMessage(error, "PredIQ could not load results.")) } }
     }
 
     fun loadResearch() = viewModelScope.launch {
@@ -185,6 +199,12 @@ class PrediqContractViewModel(context: Context) : ViewModel() {
         mutate { it.copy(selectedCompetition = value) }
         loadToday(); loadLive(); loadResults()
     }
+
+    fun setMarketFilter(value: String) { mutate { it.copy(selectedMarket = value) } }
+    fun setChanceBand(value: String) { mutate { it.copy(selectedChanceBand = value) } }
+    fun setValueFilter(value: String) { mutate { it.copy(selectedValueFilter = value) } }
+    fun setStatusFilter(value: String) { mutate { it.copy(selectedStatusFilter = value) } }
+    fun resetDecisionFilters() { mutate { it.copy(selectedSport = "", selectedCompetition = "", selectedMarket = "", selectedChanceBand = "", selectedValueFilter = "", selectedStatusFilter = "", followingOnly = false) }; loadToday(); loadLive(); loadResults() }
 
     fun setFollowingOnly(value: Boolean) {
         mutate { it.copy(followingOnly = value) }
@@ -292,11 +312,52 @@ class PrediqContractViewModel(context: Context) : ViewModel() {
             .onFailure { error -> mutate { it.copy(busy = false, error = error.message) } }
     }
 
+    fun removeV3Leg(leg: V3TicketLeg) = viewModelScope.launch {
+        val current = state.v3Ticket ?: return@launch
+        val remaining = current.legs.filterNot { it.eventId == leg.eventId && it.marketKey == leg.marketKey && it.selectionKey == leg.selectionKey }
+        if (remaining.isEmpty()) { mutate { it.copy(v3Ticket = current.copy(legs = emptyList(), weakestLegs = emptyList(), legCount = 0, combinedOdds = null, combinedReferenceOdds = null)) }; return@launch }
+        mutate { it.copy(busy = true, error = null) }
+        safe { v3Api.recalculateTicket(remaining) }
+            .onSuccess { recalculated ->
+                mutate { it.copy(v3Ticket = recalculated.copy(
+                    targetOdds = current.targetOdds,
+                    riskProfile = current.riskProfile,
+                    bookmaker = current.bookmaker,
+                    priceSource = current.priceSource,
+                    weakestLegs = recalculated.legs.sortedBy { legItem -> legItem.probability }.take(3),
+                ), busy = false) }
+            }
+            .onFailure { error -> mutate { it.copy(busy = false, error = userMessage(error, "This build could not be recalculated.")) } }
+    }
+
+    fun loadV3SavedTickets() = viewModelScope.launch {
+        safe { v3Api.tickets() }
+            .onSuccess { tickets -> mutate { it.copy(v3SavedTickets = tickets) } }
+            .onFailure { error -> mutate { it.copy(error = userMessage(error, "Saved odds could not load.")) } }
+    }
+
+    fun openV3SavedTicket(saved: V3SavedTicket) {
+        val ticket = saved.payload
+        mutate { it.copy(
+            v3Ticket = ticket,
+            v3TargetOdds = ticket.targetOdds.takeIf { value -> value > 0 } ?: saved.targetOdds ?: it.v3TargetOdds,
+            v3Risk = ticket.riskProfile.ifBlank { saved.riskProfile ?: it.v3Risk },
+            v3Bookmaker = ticket.bookmaker.ifBlank { saved.bookmaker ?: it.v3Bookmaker },
+        ) }
+    }
+
+    fun deleteV3Ticket(id: String) = viewModelScope.launch {
+        safe { v3Api.deleteTicket(id) }
+            .onSuccess { loadV3SavedTickets() }
+            .onFailure { error -> mutate { it.copy(error = userMessage(error, "Saved odds could not be removed.")) } }
+    }
+
     fun saveV3Ticket() = viewModelScope.launch {
         val ticket = state.v3Ticket ?: return@launch
         if (ticket.legs.isEmpty()) return@launch
         safe { v3Api.saveTicket("Target ${state.v3TargetOdds.toInt()}", ticket) }
-            .onFailure { error -> mutate { it.copy(error = error.message) } }
+            .onSuccess { loadV3SavedTickets() }
+            .onFailure { error -> mutate { it.copy(error = userMessage(error, "This odds build could not be saved.")) } }
     }
 
     fun clearError() { mutate { it.copy(error = null) } }
