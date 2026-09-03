@@ -54,7 +54,7 @@ class MainActivity : ComponentActivity() {
             isAppearanceLightStatusBars = false
             isAppearanceLightNavigationBars = false
         }
-        setContent { PrediqTheme { PrediqContractApp(authCallback) { authCallback = null } } }
+        setContent { com.getprediq.app.ui.v2.PrediqMainShell(authCallback) { authCallback = null } }
     }
 
     override fun onStart() {
