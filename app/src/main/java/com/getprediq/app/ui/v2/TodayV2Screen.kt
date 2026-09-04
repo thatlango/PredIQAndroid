@@ -9,6 +9,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -25,9 +26,31 @@ fun TodayV2Screen(
 ) {
     val state = vm.state
     val today = state.today
-    
+
+    LaunchedEffect(state.ready, today) {
+        if (state.ready && today == null && !state.busy && !state.refreshing) {
+            vm.loadToday()
+        }
+    }
+
     if (state.busy && today == null) {
         PrediqLoadingState()
+        return
+    }
+
+    if (today == null && !state.busy && state.error != null) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(V2Background),
+            contentAlignment = Alignment.Center
+        ) {
+            PrediqErrorState(
+                message = state.error ?: "PredIQ could not load today's analysis.",
+                actionLabel = "Retry",
+                onAction = vm::loadToday
+            )
+        }
         return
     }
 
@@ -46,7 +69,7 @@ fun TodayV2Screen(
                 onNotifications = {}
             )
         }
-        
+
         item {
             Spacer(Modifier.height(LocalV2Spacing.current.l))
             TodayHero(today?.briefing)
@@ -62,15 +85,15 @@ fun TodayV2Screen(
             }
         }
 
-        if (today?.topPicks.isNullOrEmpty() && !state.busy) {
+        if (today != null && today.topPicks.isEmpty() && !state.busy && !state.refreshing) {
             item {
                 PrediqEmptyState(
-                    title = "PredIQ is waiting",
-                    message = "No current call clears the required evidence threshold. View analysed games below."
+                    title = "No strong call right now",
+                    message = "PredIQ checked the current slate, but no call clears the required evidence threshold yet."
                 )
             }
         }
-        
+
         item {
             Spacer(Modifier.height(LocalV2Spacing.current.xxl))
         }
@@ -172,9 +195,9 @@ fun DecisionCard(card: V2DecisionCard, onClick: () -> Unit) {
                 TeamLogo(name = card.event.participants.away.name, sport = card.event.sport ?: "football", size = 24.dp)
             }
         }
-        
+
         Spacer(Modifier.height(LocalV2Spacing.current.l))
-        
+
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
