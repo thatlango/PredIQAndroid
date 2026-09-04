@@ -9,15 +9,28 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.weight
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
 import com.getprediq.app.data.PrediqLiveStream
 import com.getprediq.app.data.SessionStore
-import com.getprediq.app.ui.theme.PrediqTheme
+import com.getprediq.app.ui.v2.PrediqMainShell
+import com.getprediq.app.ui.v2.theme.V2SurfacePrimary
+import com.getprediq.app.ui.v2.theme.V2TextMuted
+import com.getprediq.app.ui.v2.theme.V2Typography
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
@@ -54,7 +67,24 @@ class MainActivity : ComponentActivity() {
             isAppearanceLightStatusBars = false
             isAppearanceLightNavigationBars = false
         }
-        setContent { com.getprediq.app.ui.v2.PrediqMainShell(authCallback) { authCallback = null } }
+        setContent {
+            Column {
+                Box(Modifier.weight(1f)) {
+                    PrediqMainShell(authCallback) { authCallback = null }
+                }
+                Surface(color = V2SurfacePrimary) {
+                    Text(
+                        text = "A product of © Tuku-Tuku Innovation Labs",
+                        style = V2Typography.labelSmall,
+                        color = V2TextMuted,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 6.dp),
+                    )
+                }
+            }
+        }
     }
 
     override fun onStart() {
