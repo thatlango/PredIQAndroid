@@ -1,5 +1,7 @@
 package com.getprediq.app.ui.v2
 
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -12,9 +14,11 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.getprediq.app.PrediqContractViewModel
@@ -27,7 +31,9 @@ fun AccountV2Screen(
     contractVm: PrediqContractViewModel,
     authVm: PrediqViewModel
 ) {
+    val context = LocalContext.current
     val state = contractVm.state
+    val authState by authVm.state
     val account = state.account
 
     LazyColumn(
@@ -49,10 +55,10 @@ fun AccountV2Screen(
                 IdentityArea(account)
                 Spacer(Modifier.height(LocalV2Spacing.current.xl))
             }
-            
+
             item {
                 PrediqElevatedSurface(
-                    contentPadding = 0.dp // Custom padding for list behavior
+                    contentPadding = 0.dp
                 ) {
                     AccountRow(Icons.Outlined.Person, "Profile settings") {}
                     HorizontalDivider(Modifier.padding(horizontal = 16.dp), color = V2Divider)
@@ -66,12 +72,41 @@ fun AccountV2Screen(
                     }
                 }
             }
+        } else if (authState.account != null) {
+            item {
+                PrediqLoadingState(
+                    modifier = Modifier.heightIn(min = 280.dp),
+                    message = "Loading your PredIQ account..."
+                )
+            }
         } else {
             item {
                 PrediqEmptyState(
                     title = "Not signed in",
                     message = "Sign in to access your profile, saved tickets, and premium intelligence."
                 )
+                Spacer(Modifier.height(LocalV2Spacing.current.m))
+                PrediqPrimaryButton(
+                    onClick = {
+                        authVm.startTuku { url ->
+                            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+                        }
+                    },
+                    enabled = !authState.authBusy,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(Icons.Outlined.Login, contentDescription = null)
+                    Spacer(Modifier.width(LocalV2Spacing.current.xs))
+                    Text(if (authState.authBusy) "Opening sign in..." else "Sign in or create account")
+                }
+                authState.authError?.takeIf { it.isNotBlank() }?.let { error ->
+                    Spacer(Modifier.height(LocalV2Spacing.current.m))
+                    Text(
+                        text = error,
+                        style = V2Typography.bodyMedium,
+                        color = V2Negative
+                    )
+                }
             }
         }
     }
@@ -107,9 +142,9 @@ fun IdentityArea(account: com.getprediq.app.data.v2.V2AccountResponse) {
                 )
             }
         }
-        
+
         Spacer(Modifier.height(LocalV2Spacing.current.l))
-        
+
         PrediqSurface(
             color = V2SurfacePrimary,
             shape = V2Shapes.small,
