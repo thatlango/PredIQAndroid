@@ -26,7 +26,8 @@ fun PrediqMainShell(authCallback: Uri? = null, onAuthCallbackConsumed: () -> Uni
     val context = LocalContext.current
     val authVm: PrediqViewModel = viewModel(factory = PrediqViewModel.factory(context.applicationContext))
     val contractVm: PrediqContractViewModel = viewModel(factory = PrediqContractViewModel.factory(context.applicationContext))
-    
+    val authState by authVm.state
+
     val nav = rememberNavController()
     val navBackStackEntry by nav.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
@@ -41,6 +42,26 @@ fun PrediqMainShell(authCallback: Uri? = null, onAuthCallbackConsumed: () -> Uni
 
     LaunchedEffect(Unit) {
         MediaCatalogStore.ensureLoaded()
+        // V2 Today/Live/Builder expose public intelligence. Load them even before sign-in.
+        contractVm.bootstrap()
+    }
+
+    LaunchedEffect(authCallback) {
+        authCallback?.let { uri ->
+            val code = uri.getQueryParameter("code")
+            val callbackState = uri.getQueryParameter("state")
+            if (!code.isNullOrBlank() && !callbackState.isNullOrBlank()) {
+                authVm.finishTuku(code, callbackState)
+            }
+            onAuthCallbackConsumed()
+        }
+    }
+
+    LaunchedEffect(authState.account?.user?.id) {
+        if (authState.account != null) {
+            // Refresh protected V2 account/ticket data after Tuku auth completes.
+            contractVm.bootstrap(force = true)
+        }
     }
 
     PrediqV2Theme {
@@ -60,14 +81,14 @@ fun PrediqMainShell(authCallback: Uri? = null, onAuthCallbackConsumed: () -> Uni
                     composable("today") {
                         TodayV2Screen(contractVm, onDecision = { ref ->
                             contractVm.loadPrediction(ref)
-                            nav.navigate("prediction/$ref")
+                            nav.navigate("prediction/${Uri.encode(ref)}")
                         })
                     }
                     composable("live") { LiveV2Screen(contractVm) }
                     composable("build") { BuildV2Screen(contractVm) }
                     composable("tickets") { TicketsV2Screen(contractVm) }
                     composable("me") { AccountV2Screen(contractVm, authVm) }
-                    
+
                     composable(
                         "prediction/{ref}",
                         arguments = listOf(androidx.navigation.navArgument("ref") { type = androidx.navigation.NavType.StringType })
