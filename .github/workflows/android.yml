@@ -1,7 +1,7 @@
 name: Android CI
 on:
   push:
-    branches: [ main, 'feat/prediq-ui-v2' ]
+    branches: [ main ]
   pull_request:
     branches: [ main ]
   workflow_dispatch:
