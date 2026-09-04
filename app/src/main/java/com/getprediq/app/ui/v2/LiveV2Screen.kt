@@ -28,9 +28,31 @@ import com.getprediq.app.ui.v2.media.*
 fun LiveV2Screen(vm: PrediqContractViewModel) {
     val state = vm.state
     val live = state.live
-    
+
+    LaunchedEffect(state.ready, live) {
+        if (state.ready && live == null && !state.busy && !state.refreshing) {
+            vm.loadLive()
+        }
+    }
+
     if (state.busy && live == null) {
         PrediqLoadingState(message = "Connecting to live intelligence...")
+        return
+    }
+
+    if (live == null && !state.busy && state.error != null) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(V2Background),
+            contentAlignment = Alignment.Center
+        ) {
+            PrediqErrorState(
+                message = state.error ?: "PredIQ could not connect to live intelligence.",
+                actionLabel = "Retry",
+                onAction = vm::loadLive
+            )
+        }
         return
     }
 
@@ -46,10 +68,10 @@ fun LiveV2Screen(vm: PrediqContractViewModel) {
         item {
             LiveHeader(
                 liveCount = live?.summary?.liveGames ?: 0,
-                connected = true // Assume connected if we have data
+                connected = live != null
             )
         }
-        
+
         if (live?.games?.isNotEmpty() == true) {
             item {
                 PrediqSectionHeader(title = "Active Fixtures")
@@ -60,11 +82,11 @@ fun LiveV2Screen(vm: PrediqContractViewModel) {
             }
         }
 
-        if (live?.games.isNullOrEmpty() && !state.busy) {
+        if (live != null && live.games.isEmpty() && !state.busy && !state.refreshing) {
             item {
                 PrediqEmptyState(
                     title = "No tracked live games",
-                    message = "No tracked event is underway right now. PredIQ will populate this automatically."
+                    message = "The live feed is connected, but no tracked event is underway right now."
                 )
             }
         }
@@ -86,11 +108,11 @@ fun LiveHeader(liveCount: Int, connected: Boolean) {
                 Box(
                     Modifier
                         .size(8.dp)
-                        .background(if (connected) V2Positive else V2Negative, CircleShape)
+                        .background(if (connected) V2Positive else V2Warning, CircleShape)
                 )
                 Spacer(Modifier.width(LocalV2Spacing.current.xs))
                 Text(
-                    text = if (connected) "Live connected" else "Reconnecting...",
+                    text = if (connected) "Live connected" else "Connecting...",
                     style = V2Typography.labelMedium,
                     color = V2TextSecondary
                 )
@@ -129,9 +151,9 @@ fun LiveMatchCard(card: V2LiveCard) {
                 LiveTrendBadge(card.change)
             }
         }
-        
+
         Spacer(Modifier.height(LocalV2Spacing.current.m))
-        
+
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
@@ -149,7 +171,7 @@ fun LiveMatchCard(card: V2LiveCard) {
                     Text(text = card.event.participants.away.name, style = V2Typography.bodyLarge)
                 }
             }
-            
+
             Column(horizontalAlignment = Alignment.End) {
                 Text(
                     text = card.event.score?.home?.toString() ?: "0",
@@ -164,9 +186,9 @@ fun LiveMatchCard(card: V2LiveCard) {
                 )
             }
         }
-        
+
         Spacer(Modifier.height(LocalV2Spacing.current.l))
-        
+
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -207,7 +229,7 @@ fun LiveTrendBadge(change: com.getprediq.app.data.v2.V2LiveChange) {
         "down" -> Icons.Outlined.TrendingDown
         else -> Icons.Outlined.TrendingFlat
     }
-    
+
     Row(verticalAlignment = Alignment.CenterVertically) {
         Icon(imageVector = icon, contentDescription = null, tint = color, modifier = Modifier.size(16.dp))
         Spacer(Modifier.width(4.dp))
