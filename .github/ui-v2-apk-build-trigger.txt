@@ -1,0 +1,1 @@
+Trigger Android CI to build the feat/prediq-ui-v2 APK. Application source remains unchanged.
