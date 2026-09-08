@@ -8,10 +8,16 @@ import androidx.compose.runtime.CompositionLocalProvider
 private val V2ColorScheme = darkColorScheme(
     primary = V2DecisionLime,
     onPrimary = V2Black,
-    primaryContainer = V2SurfaceElevated,
+    primaryContainer = V2DecisionSoft,
     onPrimaryContainer = V2TextPrimary,
     secondary = V2SecondaryBlue,
-    onSecondary = V2White,
+    onSecondary = V2Black,
+    secondaryContainer = V2SurfaceHigh,
+    onSecondaryContainer = V2TextPrimary,
+    tertiary = V2BrandViolet,
+    onTertiary = V2White,
+    tertiaryContainer = V2SurfaceElevated,
+    onTertiaryContainer = V2TextPrimary,
     background = V2Background,
     onBackground = V2TextPrimary,
     surface = V2SurfacePrimary,
@@ -19,7 +25,9 @@ private val V2ColorScheme = darkColorScheme(
     surfaceVariant = V2SurfaceElevated,
     onSurfaceVariant = V2TextSecondary,
     outline = V2Divider,
-    error = V2Negative
+    outlineVariant = V2SurfaceHigh,
+    error = V2Negative,
+    onError = V2Black,
 )
 
 @Composable
