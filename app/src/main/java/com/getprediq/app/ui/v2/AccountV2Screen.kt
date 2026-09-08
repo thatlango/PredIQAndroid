@@ -8,18 +8,31 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material3.Text
-import androidx.compose.material3.Icon
-import androidx.compose.material3.HorizontalDivider
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.*
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import com.getprediq.app.PrediqContractViewModel
 import com.getprediq.app.PrediqViewModel
@@ -47,6 +60,11 @@ fun AccountV2Screen(
     ) {
         item {
             Text(text = "Account", style = V2Typography.headlineMedium)
+            Text(
+                text = "One Tuku account. A session that stays signed in.",
+                style = V2Typography.bodyMedium,
+                color = V2TextSecondary,
+            )
             Spacer(Modifier.height(LocalV2Spacing.current.l))
         }
 
@@ -57,9 +75,7 @@ fun AccountV2Screen(
             }
 
             item {
-                PrediqElevatedSurface(
-                    contentPadding = 0.dp
-                ) {
+                PrediqElevatedSurface(contentPadding = 0.dp) {
                     AccountRow(Icons.Outlined.Person, "Profile settings") {}
                     HorizontalDivider(Modifier.padding(horizontal = 16.dp), color = V2Divider)
                     AccountRow(Icons.Outlined.Notifications, "Notifications") {}
@@ -76,39 +92,138 @@ fun AccountV2Screen(
             item {
                 PrediqLoadingState(
                     modifier = Modifier.heightIn(min = 280.dp),
-                    message = "Loading your PredIQ account..."
+                    message = "Restoring your PredIQ session..."
                 )
             }
         } else {
             item {
-                PrediqEmptyState(
-                    title = "Not signed in",
-                    message = "Sign in to access your profile, saved tickets, and premium intelligence."
-                )
-                Spacer(Modifier.height(LocalV2Spacing.current.m))
-                PrediqPrimaryButton(
-                    onClick = {
+                QuickSignInCard(
+                    busy = authState.authBusy,
+                    error = authState.authError,
+                    onSignIn = { email, password ->
+                        authVm.login(email, password) {
+                            contractVm.bootstrap(force = true)
+                        }
+                    },
+                    onTukuSignIn = {
                         authVm.startTuku { url ->
                             context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
                         }
                     },
-                    enabled = !authState.authBusy,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Icon(Icons.Outlined.Login, contentDescription = null)
-                    Spacer(Modifier.width(LocalV2Spacing.current.xs))
-                    Text(if (authState.authBusy) "Opening sign in..." else "Sign in or create account")
-                }
-                authState.authError?.takeIf { it.isNotBlank() }?.let { error ->
-                    Spacer(Modifier.height(LocalV2Spacing.current.m))
-                    Text(
-                        text = error,
-                        style = V2Typography.bodyMedium,
-                        color = V2Negative
-                    )
-                }
+                )
             }
         }
+    }
+}
+
+@Composable
+private fun QuickSignInCard(
+    busy: Boolean,
+    error: String?,
+    onSignIn: (String, String) -> Unit,
+    onTukuSignIn: () -> Unit,
+) {
+    var email by rememberSaveable { mutableStateOf("") }
+    var password by rememberSaveable { mutableStateOf("") }
+    var passwordVisible by rememberSaveable { mutableStateOf(false) }
+    val canSubmit = email.isNotBlank() && password.isNotBlank() && !busy
+
+    fun submit() {
+        if (canSubmit) onSignIn(email.trim(), password)
+    }
+
+    PrediqElevatedSurface(contentPadding = 20.dp) {
+        Text(
+            text = "Welcome back",
+            style = V2Typography.titleLarge,
+            color = V2TextPrimary,
+        )
+        Spacer(Modifier.height(4.dp))
+        Text(
+            text = "Sign in here without leaving the app. Your existing Tuku credentials work across PredIQ.",
+            style = V2Typography.bodyMedium,
+            color = V2TextSecondary,
+        )
+        Spacer(Modifier.height(LocalV2Spacing.current.l))
+
+        OutlinedTextField(
+            value = email,
+            onValueChange = { email = it },
+            modifier = Modifier.fillMaxWidth(),
+            label = { Text("Email") },
+            leadingIcon = { Icon(Icons.Outlined.Email, contentDescription = null) },
+            singleLine = true,
+            enabled = !busy,
+            shape = V2Shapes.medium,
+            keyboardOptions = KeyboardOptions(
+                keyboardType = KeyboardType.Email,
+                imeAction = ImeAction.Next,
+            ),
+        )
+        Spacer(Modifier.height(LocalV2Spacing.current.s))
+        OutlinedTextField(
+            value = password,
+            onValueChange = { password = it },
+            modifier = Modifier.fillMaxWidth(),
+            label = { Text("Password") },
+            leadingIcon = { Icon(Icons.Outlined.Lock, contentDescription = null) },
+            trailingIcon = {
+                IconButton(onClick = { passwordVisible = !passwordVisible }) {
+                    Icon(
+                        if (passwordVisible) Icons.Outlined.VisibilityOff else Icons.Outlined.Visibility,
+                        contentDescription = if (passwordVisible) "Hide password" else "Show password",
+                    )
+                }
+            },
+            visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+            singleLine = true,
+            enabled = !busy,
+            shape = V2Shapes.medium,
+            keyboardOptions = KeyboardOptions(
+                keyboardType = KeyboardType.Password,
+                imeAction = ImeAction.Done,
+            ),
+            keyboardActions = KeyboardActions(onDone = { submit() }),
+        )
+
+        error?.takeIf { it.isNotBlank() }?.let {
+            Spacer(Modifier.height(LocalV2Spacing.current.s))
+            Text(
+                text = it,
+                style = V2Typography.bodyMedium,
+                color = V2Negative,
+            )
+        }
+
+        Spacer(Modifier.height(LocalV2Spacing.current.m))
+        PrediqPrimaryButton(
+            onClick = { submit() },
+            enabled = canSubmit,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Icon(Icons.Outlined.Login, contentDescription = null)
+            Spacer(Modifier.width(LocalV2Spacing.current.xs))
+            Text(if (busy) "Signing in..." else "Sign in")
+        }
+
+        Spacer(Modifier.height(LocalV2Spacing.current.s))
+        OutlinedButton(
+            onClick = onTukuSignIn,
+            enabled = !busy,
+            shape = V2ButtonShape,
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = 48.dp),
+        ) {
+            Text("Continue with Tuku Auth")
+        }
+
+        Spacer(Modifier.height(LocalV2Spacing.current.s))
+        Text(
+            text = "PredIQ keeps the rotating Tuku session so you should not have to sign in again every time the app opens.",
+            style = V2Typography.labelSmall,
+            color = V2TextMuted,
+        )
     }
 }
 
@@ -119,7 +234,7 @@ fun IdentityArea(account: com.getprediq.app.data.v2.V2AccountResponse) {
             Box(
                 modifier = Modifier
                     .size(56.dp)
-                    .background(V2SurfacePrimary, CircleShape)
+                    .background(V2DecisionSoft, CircleShape)
                     .border(1.dp, V2Divider, CircleShape),
                 contentAlignment = Alignment.Center
             ) {
@@ -134,11 +249,12 @@ fun IdentityArea(account: com.getprediq.app.data.v2.V2AccountResponse) {
                 Text(
                     text = account.profile.name ?: "PredIQ Member",
                     style = V2Typography.titleMedium,
-                    color = V2White
+                    color = V2TextPrimary
                 )
                 Text(
                     text = account.profile.email,
-                    style = V2Typography.bodyMedium
+                    style = V2Typography.bodyMedium,
+                    color = V2TextSecondary,
                 )
             }
         }
@@ -146,12 +262,12 @@ fun IdentityArea(account: com.getprediq.app.data.v2.V2AccountResponse) {
         Spacer(Modifier.height(LocalV2Spacing.current.l))
 
         PrediqSurface(
-            color = V2SurfacePrimary,
-            shape = V2Shapes.small,
+            color = V2DecisionSoft,
+            shape = V2Shapes.medium,
             modifier = Modifier.fillMaxWidth()
         ) {
             Row(
-                Modifier.padding(12.dp),
+                Modifier.padding(14.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
@@ -163,7 +279,8 @@ fun IdentityArea(account: com.getprediq.app.data.v2.V2AccountResponse) {
                 )
                 Text(
                     text = if (account.membership.fullAccess) "Full Access" else "Limited Preview",
-                    style = V2Typography.labelMedium
+                    style = V2Typography.labelMedium,
+                    color = V2TextSecondary,
                 )
             }
         }
