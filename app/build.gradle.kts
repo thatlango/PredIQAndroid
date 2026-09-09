@@ -20,8 +20,8 @@ android {
         applicationId = "com.getprediq.app"
         minSdk = 24
         targetSdk = 35
-        versionCode = 6
-        versionName = "1.4.0"
+        versionCode = 8
+        versionName = "1.6.0"
         buildConfigField("String", "PREDIQ_API_BASE_URL", "\"https://api.getprediq.site/api/v1/\"")
     }
 
